@@ -1,0 +1,13 @@
+{
+  "itemGroup.thelemalib": "Example Mod Tab",
+  "block.thelemalib.example_block": "Example Block",
+  "item.thelemalib.example_item": "Example Item",
+
+  "thelemalib.configuration.title": "ThelemaLib Configs",
+  "thelemalib.configuration.section.thelemalib.common.toml": "ThelemaLib Configs",
+  "thelemalib.configuration.section.thelemalib.common.toml.title": "ThelemaLib Configs",
+  "thelemalib.configuration.items": "Item List",
+  "thelemalib.configuration.logDirtBlock": "Log Dirt Block",
+  "thelemalib.configuration.magicNumberIntroduction": "Magic Number Text",
+  "thelemalib.configuration.magicNumber": "Magic Number"
+}
