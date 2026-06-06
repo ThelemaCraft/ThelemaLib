@@ -3,7 +3,6 @@ package com.thelema.thelemalib.data;
 import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.server.level.ServerLevel;
-import net.minecraft.world.entity.Entity;
 import net.minecraft.world.level.saveddata.SavedData;
 import org.jetbrains.annotations.NotNull;
 
@@ -15,6 +14,7 @@ import java.util.Map;
  * */
 public class LevelMap extends SavedData {
 
+    @SuppressWarnings("rawtypes")
     public Map map = new HashMap<>();
 
     /**在 save/world/data/中创建文件*/
@@ -46,6 +46,7 @@ public class LevelMap extends SavedData {
         );
     }
 
+    @SuppressWarnings("unchecked")
     @Override
     public @NotNull CompoundTag save(@NotNull CompoundTag tag, HolderLookup.@NotNull Provider provider) {
         return MapHelper.toNBT(map, provider);

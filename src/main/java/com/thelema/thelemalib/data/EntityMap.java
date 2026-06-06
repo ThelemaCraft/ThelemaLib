@@ -15,7 +15,7 @@ public class EntityMap {
     private Entity entity;
     private RegistryAccess provider;
     private String key;
-
+    @SuppressWarnings("rawtypes")
     public Map map;
 
     @SuppressWarnings("resource")

@@ -1,8 +1,8 @@
 {
   "required": true,
   "minVersion": "0.8",
-  "package": "${mod_id}.mixins",
-  "refmap": "${mod_id}.refmap.json",
+  "package": "com.thelema.thelemalib.mixin",
+  "refmap": "thelemalib.refmap.json",
   "target": "@env(DEFAULT)",
   "compatibilityLevel": "JAVA_21",
   "mixins": [],

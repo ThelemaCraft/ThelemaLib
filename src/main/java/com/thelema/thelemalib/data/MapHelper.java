@@ -1,397 +1,393 @@
 package com.thelema.thelemalib.data;
 
-import com.google.common.reflect.TypeToken;
-import com.google.gson.*;
-import com.google.gson.stream.JsonReader;
-import com.google.gson.stream.JsonWriter;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.HolderLookup;
-import net.minecraft.core.component.DataComponents;
 import net.minecraft.nbt.*;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.neoforge.items.IItemHandler;
 import net.neoforged.neoforge.items.ItemStackHandler;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
-import java.io.IOException;
-import java.lang.reflect.ParameterizedType;
-import java.lang.reflect.Type;
 import java.util.*;
-import java.util.regex.Pattern;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.BiFunction;
+import java.util.function.Function;
 
-public class MapHelper {
 
-    private static final Pattern UUID_PATTERN = Pattern.compile(
-            "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$");
+/**
+ * Map <-> NBT 转换，所有非字符串 Key 强制使用 "$类型|数据" 格式。
+ * 类型标识符固定为 4 位。
+ *
+ * <p><strong>支持的 Key 类型：</strong>
+ * <ul>
+ *   <li>{@link String} – 原样保留</li>
+ *   <li>{@link Byte} → "$byte|数值"</li>
+ *   <li>{@link Short} → "$shrt|数值"</li>
+ *   <li>{@link Integer} → "$int_|数值"</li>
+ *   <li>{@link Long} → "$long|数值"</li>
+ *   <li>{@link Float} → "$floa|数值"</li>
+ *   <li>{@link Double} → "$doub|数值"</li>
+ *   <li>{@link UUID} → "$uuid|字符串"</li>
+ *   <li>{@link BlockPos} → "$Bpos|x,y,z"</li>
+ *   <li>{@link Vec3} → "$vec3|x,y,z"</li>
+ *   <li>其他已注册且 {@code allowedAsKey() == true} 的类型 → "$typeId|数据"</li>
+ * </ul>
+ *
+ * <strong>支持的 Value 类型：</strong>
+ * <ul>
+ *   <li>基本 NBT 类型（Byte, Short, Integer, Long, Float, Double, String）</li>
+ *   <li>{@link Boolean} → "$bool|0/1" 字符串</li>
+ *   <li>{@link Map} → {$type:"map", ...}</li>
+ *   <li>{@link List} → {$type:"list", list:[...]}</li>
+ *   <li>{@link Set} → {$type:"set", list:[...]}</li>
+ *   <li>{@link T2}, {@link T3} → {$type:"tuple2"/"tuple3", ...}</li>
+ *   <li>已注册的小对象（UUID, BlockPos, Vec3, Boolean, 数字） → "$typeId|数据" 字符串</li>
+ *   <li>已注册的大对象（ItemStack, IItemHandler, CompoundTag） → {$type:"$typeId", data:...} 原生 NBT</li>
+ *   <li>其他未注册类型 → obj.toString()（丢失类型信息）</li>
+ * </ul>
+ * </p>
+ */
+public final class MapHelper {
+    private static final Logger LOGGER = LoggerFactory.getLogger(MapHelper.class);
 
-    // =======================   Gson 实例（带自定义适配器）   ===============================
+    private static final Map<Class<?>, TypeHandler<?>> HANDLERS = new ConcurrentHashMap<>();
+    private static final Map<String, TypeHandler<?>> TYPE_ID_TO_HANDLER = new ConcurrentHashMap<>();
 
-    private static final Gson GSON = new GsonBuilder()
-            .registerTypeAdapter(Number.class, new NumberTypeAdapter())
-            .registerTypeAdapter(T2.class, new Tuple2Deserializer())
-            .registerTypeAdapter(T3.class, new Tuple3Deserializer())
-            .registerTypeAdapter(IItemHandler.class, new IItemHandlerTypeAdapter())
-            .registerTypeAdapter(ItemStackHandler.class, new IItemHandlerTypeAdapter())
-            .create();
-
-    // ---------- 数字类型适配器 ----------
-    private static class NumberTypeAdapter extends TypeAdapter<Number> {
-        @Override
-        public void write(JsonWriter out, Number value) throws IOException {
-            out.value(value);
-        }
-
-        @Override
-        public Number read(JsonReader in) throws IOException {
-            String s = in.nextString();
-            if (s.contains(".") || s.contains("e") || s.contains("E")) {
-                return Double.parseDouble(s);
-            } else {
-                long longVal = Long.parseLong(s);
-                if (longVal >= Integer.MIN_VALUE && longVal <= Integer.MAX_VALUE) {
-                    return (int) longVal;
-                }
-                return longVal;
-            }
-        }
+    public interface TypeHandler<T> {
+        /** 4位标识符 */
+        String typeId();
+        /** 将对象编码为紧凑字符串（用于 Key 或小对象 Value） */
+        String encodeToString(T value, HolderLookup.Provider provider);
+        /** 从紧凑字符串解码 */
+        T decodeFromString(String data, HolderLookup.Provider provider);
+        /** 将对象编码为原生 NBT Tag（用于大对象 Value） */
+        Tag encodeToTag(T value, HolderLookup.Provider provider);
+        /** 从原生 NBT Tag 解码 */
+        T decodeFromTag(Tag data, HolderLookup.Provider provider);
+        /** 是否允许作为 Map 的 Key（默认 true） */
+        default boolean allowedAsKey() { return true; }
     }
 
-    // ---------- Tuple2 反序列化器 ----------
-    private static class Tuple2Deserializer implements JsonDeserializer<T2<?, ?>> {
-        @Override
-        public T2<?, ?> deserialize(JsonElement json, Type typeOfT, JsonDeserializationContext context) throws JsonParseException {
-            if (!json.isJsonObject()) throw new JsonParseException("Expected object for Tuple2");
-            JsonObject obj = json.getAsJsonObject();
-            JsonElement tupleElement = obj.get("$tuple2");
-            if (tupleElement == null || !tupleElement.isJsonArray()) throw new JsonParseException("Missing $tuple2 array");
-            JsonArray array = tupleElement.getAsJsonArray();
-            if (array.size() != 2) throw new JsonParseException("Tuple2 array must have 2 elements");
-            Type[] elementTypes = ((ParameterizedType) typeOfT).getActualTypeArguments();
-            Object left = context.deserialize(array.get(0), elementTypes[0]);
-            Object right = context.deserialize(array.get(1), elementTypes[1]);
-            return new T2<>(left, right);
-        }
+    public static <T> void register(Class<T> clazz, TypeHandler<T> handler) {
+        HANDLERS.put(clazz, handler);
+        TYPE_ID_TO_HANDLER.put(handler.typeId(), handler);
     }
 
-    // ---------- Tuple3 反序列化器 ----------
-    private static class Tuple3Deserializer implements JsonDeserializer<T3<?, ?, ?>> {
-        @Override
-        public T3<?, ?, ?> deserialize(JsonElement json, Type typeOfT, JsonDeserializationContext context) throws JsonParseException {
-            if (!json.isJsonObject()) throw new JsonParseException("Expected object for Tuple3");
-            JsonObject obj = json.getAsJsonObject();
-            JsonElement tupleElement = obj.get("$tuple3");
-            if (tupleElement == null || !tupleElement.isJsonArray()) throw new JsonParseException("Missing $tuple3 array");
-            JsonArray array = tupleElement.getAsJsonArray();
-            if (array.size() != 3) throw new JsonParseException("Tuple3 array must have 3 elements");
-            Type[] elementTypes = ((ParameterizedType) typeOfT).getActualTypeArguments();
-            Object left = context.deserialize(array.get(0), elementTypes[0]);
-            Object middle = context.deserialize(array.get(1), elementTypes[1]);
-            Object right = context.deserialize(array.get(2), elementTypes[2]);
-            return new T3<>(left, middle, right);
-        }
-    }
+    static {
+        // 数字类型（Key 专用）
+        register(Byte.class, new SmallTypeHandler<>(Byte.class, "byte", Object::toString, Byte::parseByte));
+        register(Short.class, new SmallTypeHandler<>(Short.class, "shrt", Object::toString, Short::parseShort));
+        register(Integer.class, new SmallTypeHandler<>(Integer.class, "int_", Object::toString, Integer::parseInt));
+        register(Long.class, new SmallTypeHandler<>(Long.class, "long", Object::toString, Long::parseLong));
+        register(Float.class, new SmallTypeHandler<>(Float.class, "floa", Object::toString, Float::parseFloat));
+        register(Double.class, new SmallTypeHandler<>(Double.class, "doub", Object::toString, Double::parseDouble));
 
-    // 自定义 IItemHandler 类型适配器
-    private static class IItemHandlerTypeAdapter extends TypeAdapter<IItemHandler> {
-        @Override
-        public void write(JsonWriter out, IItemHandler handler) throws IOException {
-            out.beginObject();
-            out.name("type").value("$iitemhandler");
-            out.name("size").value(handler.getSlots());
-            out.name("items").beginArray();
-            for (int i = 0; i < handler.getSlots(); i++) {
-                ItemStack stack = handler.getStackInSlot(i);
-                if (!stack.isEmpty()) {
-                    out.beginObject();
-                    out.name("slot").value(i);
-                    out.name("item").value(stack.getItem().getDescriptionId());
-                    out.name("count").value(stack.getCount());
-                    if (stack.has(DataComponents.CUSTOM_DATA)) {
-                        out.name("tag").value(stack.get(DataComponents.CUSTOM_DATA).toString());
+        // UUID
+        register(UUID.class, new SmallTypeHandler<>(UUID.class, "uuid", UUID::toString, UUID::fromString));
+
+        // BlockPos
+        register(BlockPos.class, new SmallTypeHandler<>(BlockPos.class, "Bpos",
+                pos -> pos.getX() + "," + pos.getY() + "," + pos.getZ(),
+                data -> {
+                    String[] parts = data.split(",");
+                    return new BlockPos(Integer.parseInt(parts[0]), Integer.parseInt(parts[1]), Integer.parseInt(parts[2]));
+                }));
+
+        // Vec3
+        register(Vec3.class, new SmallTypeHandler<>(Vec3.class, "vec3",
+                vec -> vec.x + "," + vec.y + "," + vec.z,
+                data -> {
+                    String[] parts = data.split(",");
+                    return new Vec3(Double.parseDouble(parts[0]), Double.parseDouble(parts[1]), Double.parseDouble(parts[2]));
+                }));
+
+        // Boolean
+        register(Boolean.class, new SmallTypeHandler<>(Boolean.class, "bool", b -> b ? "1" : "0", "1"::equals));
+
+        // ItemStack（大对象）
+        register(ItemStack.class, new LargeTypeHandler<>(ItemStack.class, "$itemstack",
+                (stack, prov) -> stack.save(prov, new CompoundTag()),
+                (tag, prov) -> ItemStack.parse(prov, tag).orElse(ItemStack.EMPTY)));
+
+        // IItemHandler（大对象）
+        register(IItemHandler.class, new LargeTypeHandler<>(IItemHandler.class, "$iitemhandler",
+                (handler, prov) -> {
+                    CompoundTag nbt = new CompoundTag();
+                    nbt.putInt("Size", handler.getSlots());
+                    ListTag items = new ListTag();
+                    for (int i = 0; i < handler.getSlots(); i++) {
+                        ItemStack stack = handler.getStackInSlot(i);
+                        if (!stack.isEmpty()) {
+                            CompoundTag itemTag = new CompoundTag();
+                            itemTag.putInt("Slot", i);
+                            items.add(stack.save(prov, itemTag));
+                        }
                     }
-                    out.endObject();
-                }
-            }
-            out.endArray();
-            out.endObject();
+                    nbt.put("Items", items);
+                    return nbt;
+                },
+                (tag, prov) -> {
+                    CompoundTag nbt = (CompoundTag) tag;
+                    int size = nbt.getInt("Size");
+                    ItemStackHandler handler = new ItemStackHandler(size);
+                    ListTag items = nbt.getList("Items", Tag.TAG_COMPOUND);
+                    for (int i = 0; i < items.size(); i++) {
+                        CompoundTag itemTag = items.getCompound(i);
+                        int slot = itemTag.getInt("Slot");
+                        ItemStack stack = ItemStack.parse(prov, itemTag).orElse(ItemStack.EMPTY);
+                        handler.setStackInSlot(slot, stack);
+                    }
+                    return handler;
+                }));
+
+        // CompoundTag（大对象）
+        register(CompoundTag.class, new LargeTypeHandler<>(CompoundTag.class, "$nbt",
+                (ct, prov) -> ct,
+                (tag, prov) -> (CompoundTag) tag));
+    }
+
+    // 辅助类：小对象处理器（仅实现字符串编解码）
+    private record SmallTypeHandler<T>(Class<T> clazz, String typeId, Function<T, String> encoder,
+                                           Function<String, T> decoder) implements TypeHandler<T> {
+        @Override
+        public String encodeToString(T value, HolderLookup.Provider provider) {
+            return encoder.apply(value);
         }
 
         @Override
-        public IItemHandler read(JsonReader in) throws IOException {
-            in.skipValue();
-            return null;
+        public T decodeFromString(String data, HolderLookup.Provider provider) {
+            return decoder.apply(data);
         }
-    }
 
-    // =======================   NBT   ===============================
+        @Override
+        public Tag encodeToTag(T value, HolderLookup.Provider provider) {
+            throw new UnsupportedOperationException();
+        }
 
+        @Override
+        public T decodeFromTag(Tag data, HolderLookup.Provider provider) {
+            throw new UnsupportedOperationException();
+        }
+        }
+
+    // 辅助类：大对象处理器（仅实现 Tag 编解码）
+    private record LargeTypeHandler<T>(Class<T> clazz, String typeId, BiFunction<T, HolderLookup.Provider, Tag> encoder,
+                                           BiFunction<Tag, HolderLookup.Provider, T> decoder) implements TypeHandler<T> {
+        @Override
+        public String encodeToString(T value, HolderLookup.Provider provider) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public T decodeFromString(String data, HolderLookup.Provider provider) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public Tag encodeToTag(T value, HolderLookup.Provider provider) {
+            return encoder.apply(value, provider);
+        }
+
+        @Override
+        public T decodeFromTag(Tag data, HolderLookup.Provider provider) {
+            return decoder.apply(data, provider);
+        }
+
+        @Override
+        public boolean allowedAsKey() {
+            return false;
+        } // 大对象默认不允许作为 Key
+        }
+
+    // ======================= 核心转换 =======================
     public static CompoundTag toNBT(Map<Object, Object> map, HolderLookup.Provider provider) {
-        CompoundTag tag = new CompoundTag();
-        for (Map.Entry<Object, Object> entry : map.entrySet()) {
-            String key;
-            Object k = entry.getKey();
-            if (k == null) {
-                key = "null";
-            } else if (k instanceof BlockPos pos) {
-                key = "B" + pos.asLong();   // 使用前缀 B + 编码的 long
-            } else if (k instanceof UUID uuid) {
-                key = uuid.toString();
-            } else {
-                key = k.toString();
+        CompoundTag out = new CompoundTag();
+        for (Map.Entry<Object, Object> e : map.entrySet()) {
+            String key = encodeKey(e.getKey(), provider);
+            if (key == null) {
+                LOGGER.warn("Skipping entry with unsupported key type: {}", e.getKey().getClass());
+                continue;
             }
-            tag.put(key, toTag(entry.getValue(), provider));
+            out.put(key, toTag(e.getValue(), provider));
         }
-        return tag;
+        return out;
     }
 
-    public static Map<Object, Object> fromNbt(CompoundTag nbt, HolderLookup.Provider provider) {
+    public static Map<Object, Object> fromNbt(CompoundTag tag, HolderLookup.Provider provider) {
         Map<Object, Object> map = new HashMap<>();
-        for (String key : nbt.getAllKeys()) {
-            Object mapKey = key;
-            if (key.startsWith("B")) {
-                try {
-                    long encoded = Long.parseLong(key.substring(1));
-                    mapKey = BlockPos.of(encoded);
-                } catch (NumberFormatException ignored) {}
-            } else if (isUuidString(key)) {
-                try {
-                    mapKey = UUID.fromString(key);
-                } catch (IllegalArgumentException ignored) {}
+        for (String key : tag.getAllKeys()) {
+            Object mapKey = decodeKey(key, provider);
+            if (mapKey == null) {
+                LOGGER.warn("Skipping unknown key format: {}", key);
+                continue;
             }
-            Tag tag = nbt.get(key);
-            Object value = fromTag(tag, provider);
-            map.put(mapKey, value);
+            map.put(mapKey, fromTag(tag.get(key), provider));
         }
         return map;
     }
 
+    // ========== Key 编码/解码 ==========
+    private static String encodeKey(Object key, HolderLookup.Provider provider) {
+        if (key instanceof String s) return s;
+        TypeHandler<?> handler = findHandler(key.getClass());
+        if (handler != null && handler.allowedAsKey()) {
+            return "$" + handler.typeId() + "|" + encodeKeyWithHandler(handler, key, provider);
+        }
+        return null;
+    }
+
+    private static Object decodeKey(String key, HolderLookup.Provider provider) {
+        if (key == null) return null;
+        if (key.startsWith("$")) {
+            int pipe = key.indexOf('|');
+            if (pipe == -1) return null;
+            String typeId = key.substring(1, pipe);
+            String data = key.substring(pipe + 1);
+            TypeHandler<?> handler = TYPE_ID_TO_HANDLER.get(typeId);
+            if (handler != null) {
+                return handler.decodeFromString(data, provider);
+            }
+            return null;
+        }
+        return key;
+    }
+
+    // ========== Value 编码/解码 ==========
     private static Tag toTag(Object obj, HolderLookup.Provider provider) {
         if (obj == null) return new CompoundTag();
 
-        // 新增 BlockPos 处理
-        if (obj instanceof BlockPos pos) {
-            CompoundTag wrapper = new CompoundTag();
-            wrapper.putString("type", "$blockpos");
-            wrapper.putInt("x", pos.getX());
-            wrapper.putInt("y", pos.getY());
-            wrapper.putInt("z", pos.getZ());
-            return wrapper;
-        }
-
-        // 修改1：CompoundTag 包装为 $nbt
-        if (obj instanceof CompoundTag ct) {
-            CompoundTag wrapper = new CompoundTag();
-            wrapper.putString("type", "$nbt");
-            wrapper.put("data", ct);
-            return wrapper;
-        }
-
-        // 修改2：Map 直接序列化为普通 CompoundTag（无标记）
-        if (obj instanceof Map<?, ?> map) {
-            @SuppressWarnings("unchecked")
-            Map<Object, Object> m = (Map<Object, Object>) map;
-            return toNBT(m, provider);
-        }
-
-        // ---------- 需要标记的类型 ----------
-        // List
-        if (obj instanceof List<?> list) {
-            CompoundTag wrapper = new CompoundTag();
-            wrapper.putString("type", "$list");
-            ListTag content = new ListTag();
-            for (Object e : list) {
-                Tag elemTag = toTag(e, provider);
-                CompoundTag elemWrapper = new CompoundTag();
-                elemWrapper.put("value", elemTag);
-                content.add(elemWrapper);
-            }
-            wrapper.put("list", content);
-            return wrapper;
-        }
-
-        // Set
-        if (obj instanceof Set<?> set) {
-            CompoundTag wrapper = new CompoundTag();
-            wrapper.putString("type", "$set");
-            ListTag content = new ListTag();
-            for (Object e : set) {
-                Tag elemTag = toTag(e, provider);
-                CompoundTag elemWrapper = new CompoundTag();
-                elemWrapper.put("value", elemTag);
-                content.add(elemWrapper);
-            }
-            wrapper.put("list", content);
-            return wrapper;
-        }
-
-        // Tuple2
-        if (obj instanceof T2<?, ?> tuple) {
-            CompoundTag wrapper = new CompoundTag();
-            wrapper.putString("type", "$tuple2");
-            wrapper.put("left", toTag(tuple.left, provider));
-            wrapper.put("right", toTag(tuple.right, provider));
-            return wrapper;
-        }
-
-        // Tuple3
-        if (obj instanceof T3<?, ?, ?> tuple) {
-            CompoundTag wrapper = new CompoundTag();
-            wrapper.putString("type", "$tuple3");
-            wrapper.put("left", toTag(tuple.left, provider));
-            wrapper.put("middle", toTag(tuple.middle, provider));
-            wrapper.put("right", toTag(tuple.right, provider));
-            return wrapper;
-        }
-
-        // Vec3
-        if (obj instanceof Vec3 vec) {
-            CompoundTag wrapper = new CompoundTag();
-            wrapper.putString("type", "$vec3");
-            wrapper.putDouble("x", vec.x);
-            wrapper.putDouble("y", vec.y);
-            wrapper.putDouble("z", vec.z);
-            return wrapper;
-        }
-
-        // IItemHandler
-        if (obj instanceof IItemHandler handler) {
-            CompoundTag nbt = new CompoundTag();
-            ListTag items = new ListTag();
-            for (int i = 0; i < handler.getSlots(); i++) {
-                ItemStack stack = handler.getStackInSlot(i);
-                if (!stack.isEmpty()) {
-                    CompoundTag itemTag = new CompoundTag();
-                    itemTag.putInt("Slot", i);
-                    items.add(stack.save(provider, itemTag));
-                }
-            }
-            nbt.put("Items", items);
-            nbt.putInt("Size", handler.getSlots());
-
-            CompoundTag wrapper = new CompoundTag();
-            wrapper.putString("type", "$iitemhandler");
-            wrapper.put("data", nbt);
-            return wrapper;
-        }
-
-        // ItemStack
-        if (obj instanceof ItemStack stack) {
-            CompoundTag stackNbt = (CompoundTag) stack.save(provider, new CompoundTag());
-            CompoundTag wrapper = new CompoundTag();
-            wrapper.putString("type", "$itemstack");
-            wrapper.put("data", stackNbt);
-            return wrapper;
-        }
-
-        // Boolean
-        if (obj instanceof Boolean b) {
-            CompoundTag wrapper = new CompoundTag();
-            wrapper.putString("type", "$boolean");
-            wrapper.putBoolean("value", b);
-            return wrapper;
-        }
-
-        // 基本数字类型
+        // 基本 NBT 类型
         if (obj instanceof Byte b) return ByteTag.valueOf(b);
         if (obj instanceof Short s) return ShortTag.valueOf(s);
         if (obj instanceof Integer i) return IntTag.valueOf(i);
         if (obj instanceof Long l) return LongTag.valueOf(l);
         if (obj instanceof Float f) return FloatTag.valueOf(f);
         if (obj instanceof Double d) return DoubleTag.valueOf(d);
-
-        // 字符串、UUID
         if (obj instanceof String s) return StringTag.valueOf(s);
-        if (obj instanceof UUID uuid) return StringTag.valueOf(uuid.toString());
+
+        // 容器递归
+        if (obj instanceof Map<?,?> m) {
+            CompoundTag container = new CompoundTag();
+            container.putString("$type", "map");
+            for (Map.Entry<?,?> e : m.entrySet()) {
+                String k = encodeKey(e.getKey(), provider);
+                if (k == null) continue;
+                container.put(k, toTag(e.getValue(), provider));
+            }
+            return container;
+        }
+        if (obj instanceof List<?> list) {
+            CompoundTag container = new CompoundTag();
+            container.putString("$type", "list");
+            ListTag listTag = new ListTag();
+            for (Object e : list) listTag.add(toTag(e, provider));
+            container.put("list", listTag);
+            return container;
+        }
+        if (obj instanceof Set<?> set) {
+            CompoundTag container = new CompoundTag();
+            container.putString("$type", "set");
+            ListTag listTag = new ListTag();
+            for (Object e : set) listTag.add(toTag(e, provider));
+            container.put("list", listTag);
+            return container;
+        }
+        if (obj instanceof T2<?,?> t2) {
+            CompoundTag container = new CompoundTag();
+            container.putString("$type", "tuple2");
+            container.put("left", toTag(t2.left, provider));
+            container.put("right", toTag(t2.right, provider));
+            return container;
+        }
+        if (obj instanceof T3<?,?,?> t3) {
+            CompoundTag container = new CompoundTag();
+            container.putString("$type", "tuple3");
+            container.put("left", toTag(t3.left, provider));
+            container.put("middle", toTag(t3.middle, provider));
+            container.put("right", toTag(t3.right, provider));
+            return container;
+        }
+
+        // 通过 TypeHandler 处理
+        TypeHandler<?> handler = findHandler(obj.getClass());
+        if (handler != null) {
+            return encodeValueWithHandler(handler, obj, provider); // 调用辅助方法
+        }
 
         // fallback
         return StringTag.valueOf(obj.toString());
     }
 
     private static Object fromTag(Tag tag, HolderLookup.Provider provider) {
-        // 处理 CompoundTag 包装类型
-        if (tag instanceof CompoundTag ct && ct.contains("type")) {
-            String type = ct.getString("type");
-            switch (type) {
-                case "$nbt" -> {
-                    return ct.getCompound("data");
-                }
-                case "$list" -> {
-                    ListTag listTag = ct.getList("list", Tag.TAG_COMPOUND);
-                    List<Object> list = new ArrayList<>();
-                    for (Tag t : listTag) {
-                        if (t instanceof CompoundTag elem) {
-                            list.add(fromTag(elem.get("value"), provider));
-                        }
+        // 字符串形式的小对象
+        if (tag instanceof StringTag str) {
+            String s = str.getAsString();
+            if (s.startsWith("$")) {
+                int pipe = s.indexOf('|');
+                if (pipe != -1) {
+                    String typeId = s.substring(1, pipe);
+                    String data = s.substring(pipe + 1);
+                    TypeHandler<?> handler = TYPE_ID_TO_HANDLER.get(typeId);
+                    if (handler != null) {
+                        return handler.decodeFromString(data, provider);
                     }
-                    return list;
-                }
-                case "$set" -> {
-                    ListTag listTag = ct.getList("list", Tag.TAG_COMPOUND);
-                    Set<Object> set = new LinkedHashSet<>();
-                    for (Tag t : listTag) {
-                        if (t instanceof CompoundTag elem) {
-                            set.add(fromTag(elem.get("value"), provider));
-                        }
-                    }
-                    return set;
-                }
-                case "$tuple2" -> {
-                    Object left = fromTag(ct.get("left"), provider);
-                    Object right = fromTag(ct.get("right"), provider);
-                    return new T2<>(left, right);
-                }
-                case "$tuple3" -> {
-                    Object left = fromTag(ct.get("left"), provider);
-                    Object middle = fromTag(ct.get("middle"), provider);
-                    Object right = fromTag(ct.get("right"), provider);
-                    return new T3<>(left, middle, right);
-                }
-                case "$vec3" -> {
-                    double x = ct.getDouble("x");
-                    double y = ct.getDouble("y");
-                    double z = ct.getDouble("z");
-                    return new Vec3(x, y, z);
-                }
-                case "$iitemhandler" -> {
-                    CompoundTag data = ct.getCompound("data");
-                    return deserializeItemHandler(data, provider);
-                }
-                case "$itemstack" -> {
-                    CompoundTag data = ct.getCompound("data");
-                    return ItemStack.parse(provider, data).orElse(ItemStack.EMPTY);
-                }
-                case "$boolean" -> {
-                    return ct.getBoolean("value");
-                }
-                case "$blockpos" -> {
-                    int x = ct.getInt("x");
-                    int y = ct.getInt("y");
-                    int z = ct.getInt("z");
-                    return new BlockPos(x, y, z);
-                }
-                default -> {
                 }
             }
+            return s;
         }
-
-        // 普通 CompoundTag：保持为 CompoundTag（不展开）
+        // CompoundTag 容器或大对象包装
         if (tag instanceof CompoundTag ct) {
-            // 检查是否是旧的 Vec3 格式（兼容旧数据）
-            if (ct.contains("Type") && ct.getString("Type").equals("Vec3")) {
-                double x = ct.getDouble("x");
-                double y = ct.getDouble("y");
-                double z = ct.getDouble("z");
-                return new Vec3(x, y, z);
+            if (ct.contains("$type")) {
+                String type = ct.getString("$type");
+                switch (type) {
+                    case "map" -> {
+                        Map<Object, Object> map = new HashMap<>();
+                        for (String k : ct.getAllKeys()) {
+                            if (k.equals("$type")) continue;
+                            Object key = decodeKey(k, provider);
+                            if (key == null) continue;
+                            map.put(key, fromTag(ct.get(k), provider));
+                        }
+                        return map;
+                    }
+                    case "list" -> {
+                        ListTag listTag = ct.getList("list", Tag.TAG_COMPOUND);
+                        List<Object> list = new ArrayList<>();
+                        for (Tag t : listTag) list.add(fromTag(t, provider));
+                        return list;
+                    }
+                    case "set" -> {
+                        ListTag listTag = ct.getList("list", Tag.TAG_COMPOUND);
+                        Set<Object> set = new LinkedHashSet<>();
+                        for (Tag t : listTag) set.add(fromTag(t, provider));
+                        return set;
+                    }
+                    case "tuple2" -> {
+                        Object left = fromTag(ct.get("left"), provider);
+                        Object right = fromTag(ct.get("right"), provider);
+                        return new T2<>(left, right);
+                    }
+                    case "tuple3" -> {
+                        Object left = fromTag(ct.get("left"), provider);
+                        Object middle = fromTag(ct.get("middle"), provider);
+                        Object right = fromTag(ct.get("right"), provider);
+                        return new T3<>(left, middle, right);
+                    }
+                    default -> {
+                        TypeHandler<?> handler = TYPE_ID_TO_HANDLER.get(type);
+                        if (handler != null && ct.contains("data")) {
+                            Tag data = ct.get("data");
+                            return handler.decodeFromTag(data, provider);
+                        }
+                        return fromNbt(ct, provider);
+                    }
+                }
+            } else {
+                return fromNbt(ct, provider);
             }
-            // 检查是否是旧的 IItemHandler 格式
-            if (ct.contains("Items", Tag.TAG_LIST) && ct.contains("Size", Tag.TAG_INT)) {
-                return deserializeItemHandler(ct, provider);
-            }
-
-            // 其他普通 CompoundTag 保持原样
-            return fromNbt(ct, provider);
         }
-
         // 基本数字类型
         if (tag instanceof ByteTag bt) return bt.getAsByte();
         if (tag instanceof ShortTag st) return st.getAsShort();
@@ -399,247 +395,36 @@ public class MapHelper {
         if (tag instanceof LongTag lt) return lt.getAsLong();
         if (tag instanceof FloatTag ft) return ft.getAsFloat();
         if (tag instanceof DoubleTag dt) return dt.getAsDouble();
-        if (tag instanceof StringTag str) {
-            String s = str.getAsString();
-            if (isUuidString(s)) {
-                try {
-                    return UUID.fromString(s);
-                } catch (IllegalArgumentException ignored) {}
-            }
-            return s;
-        }
         return tag.getAsString();
     }
 
-    private static IItemHandler deserializeItemHandler(CompoundTag nbt, HolderLookup.Provider provider) {
-        int size = nbt.getInt("Size");
-        ItemStackHandler handler = new ItemStackHandler(size);
-        ListTag items = nbt.getList("Items", Tag.TAG_COMPOUND);
-        for (int i = 0; i < items.size(); i++) {
-            CompoundTag itemTag = items.getCompound(i);
-            int slot = itemTag.getInt("Slot");
-            ItemStack stack = ItemStack.parse(provider, itemTag).orElse(ItemStack.EMPTY);
-            handler.setStackInSlot(slot, stack);
+    @SuppressWarnings("unchecked")
+    private static <T> TypeHandler<T> findHandler(Class<T> clazz) {
+        TypeHandler<?> handler = HANDLERS.get(clazz);
+        if (handler != null) return (TypeHandler<T>) handler;
+        for (Map.Entry<Class<?>, TypeHandler<?>> e : HANDLERS.entrySet()) {
+            if (e.getKey().isAssignableFrom(clazz)) return (TypeHandler<T>) e.getValue();
         }
-        return handler;
-    }
-
-    // =======================   Json   ===============================
-
-    public static String toJson(Object obj) {
-        return GSON.toJson(obj);
-    }
-
-    public static String toJson(Map<Object, Object> map, HolderLookup.Provider provider) {
-        Object plain = toJsonValue(map, provider);
-        return GSON.toJson(plain);
-    }
-
-    public static Map<Object, Object> fromJson(String json, HolderLookup.Provider provider) {
-        Type type = new TypeToken<Map<String, Object>>(){}.getType();
-        Map<String, Object> plain = GSON.fromJson(json, type);
-        if (plain == null) return new HashMap<>();
-        Object result = fromJsonValue(plain, provider);
-        result = normalizeNumbers(result);
-        if (result instanceof Map) {
-            @SuppressWarnings("unchecked")
-            Map<Object, Object> map = (Map<Object, Object>) result;
-            return map;
-        }
-        return new HashMap<>();
+        return null;
     }
 
     @SuppressWarnings("unchecked")
-    public static <K, V> Map<K, V> fromJson(String json, Type type, HolderLookup.Provider provider) {
-        Map<K, V> map = GSON.fromJson(json, type);
-        return (Map<K, V>) normalizeNumbers(map);
+    private static <T> String encodeKeyWithHandler(TypeHandler<T> handler, Object key, HolderLookup.Provider provider) {
+        return "$" + handler.typeId() + "|" + handler.encodeToString((T) key, provider);
     }
 
-    public static <V> Map<UUID, V> convertKeysToUuid(Map<String, V> stringKeyMap) {
-        Map<UUID, V> result = new HashMap<>();
-        for (Map.Entry<String, V> entry : stringKeyMap.entrySet()) {
-            result.put(UUID.fromString(entry.getKey()), entry.getValue());
+    @SuppressWarnings("unchecked")
+    private static <T> Tag encodeValueWithHandler(TypeHandler<T> handler, Object value, HolderLookup.Provider provider) {
+        try {
+            Tag data = handler.encodeToTag((T) value, provider);
+            CompoundTag wrapper = new CompoundTag();
+            wrapper.putString("$type", handler.typeId());
+            wrapper.put("data", data);
+            return wrapper;
+        } catch (UnsupportedOperationException e) {
+            String str = handler.encodeToString((T) value, provider);
+            return StringTag.valueOf("$" + handler.typeId() + "|" + str);
         }
-        return result;
     }
 
-    private static Object normalizeNumbers(Object obj) {
-        if (obj instanceof Double d) {
-            if (d == Math.floor(d) && !Double.isInfinite(d)) {
-                long l = d.longValue();
-                if (l >= Integer.MIN_VALUE && l <= Integer.MAX_VALUE) {
-                    return (int) l;
-                }
-                return l;
-            }
-            return d;
-        }
-        if (obj instanceof Map<?, ?>) {
-            @SuppressWarnings("unchecked")
-            Map<Object, Object> map = (Map<Object, Object>) obj;
-            Map<Object, Object> newMap = new HashMap<>();
-            for (Map.Entry<Object, Object> e : map.entrySet()) {
-                newMap.put(e.getKey(), normalizeNumbers(e.getValue()));
-            }
-            return newMap;
-        }
-        if (obj instanceof List<?>) {
-            List<Object> list = (List<Object>) obj;
-            List<Object> newList = new ArrayList<>();
-            for (Object e : list) {
-                newList.add(normalizeNumbers(e));
-            }
-            return newList;
-        }
-        if (obj instanceof Set<?>) {
-            Set<Object> set = (Set<Object>) obj;
-            Set<Object> newSet = new LinkedHashSet<>();
-            for (Object e : set) {
-                newSet.add(normalizeNumbers(e));
-            }
-            return newSet;
-        }
-        if (obj instanceof T2<?, ?>) {
-            T2<?, ?> t = (T2<?, ?>) obj;
-            return new T2<>(normalizeNumbers(t.left), normalizeNumbers(t.right));
-        }
-        if (obj instanceof T3<?, ?, ?>) {
-            T3<?, ?, ?> t = (T3<?, ?, ?>) obj;
-            return new T3<>(normalizeNumbers(t.left), normalizeNumbers(t.middle), normalizeNumbers(t.right));
-        }
-        return obj;
-    }
-
-    private static Object toJsonValue(Object obj, HolderLookup.Provider provider) {
-        if (obj == null) return null;
-        if (obj instanceof BlockPos pos) {
-            return Map.of("$blockpos", List.of(pos.getX(), pos.getY(), pos.getZ()));
-        }
-        if (obj instanceof Map<?, ?>) {
-            @SuppressWarnings("unchecked")
-            Map<Object, Object> m = (Map<Object, Object>) obj;
-            Map<String, Object> out = new HashMap<>();
-            for (Map.Entry<Object, Object> e : m.entrySet()) {
-                out.put(e.getKey().toString(), toJsonValue(e.getValue(), provider));
-            }
-            return out;
-        }
-        if (obj instanceof List<?>) {
-            List<Object> list = (List<Object>) obj;
-            List<Object> out = new ArrayList<>();
-            for (Object e : list) out.add(toJsonValue(e, provider));
-            return out;
-        }
-        if (obj instanceof Set<?>) {
-            Set<?> set = (Set<?>) obj;
-            List<Object> list = new ArrayList<>();
-            for (Object e : set) list.add(toJsonValue(e, provider));
-            return Map.of("$set", list);
-        }
-        if (obj instanceof T2<?, ?> t) {
-            return Map.of("$tuple2", List.of(toJsonValue(t.left, provider), toJsonValue(t.right, provider)));
-        }
-        if (obj instanceof T3<?, ?, ?> t) {
-            return Map.of("$tuple3", List.of(toJsonValue(t.left, provider), toJsonValue(t.middle, provider), toJsonValue(t.right, provider)));
-        }
-        if (obj instanceof IItemHandler handler) {
-            CompoundTag nbt = (CompoundTag) toTag(handler, provider);
-            Map<Object, Object> map = fromNbt(nbt, provider);
-            return Map.of("$iitemhandler", toJsonValue(map, provider));
-        }
-        if (obj instanceof ItemStack stack) {
-            CompoundTag nbt = (CompoundTag) toTag(stack, provider);
-            Map<Object, Object> map = fromNbt(nbt, provider);
-            return Map.of("$itemstack", toJsonValue(map, provider));
-        }
-        if (obj instanceof Vec3 v) {
-            return Map.of("x", v.x, "y", v.y, "z", v.z);
-        }
-        if (obj instanceof UUID uuid) {
-            return uuid.toString();
-        }
-        if (obj instanceof Number) return obj;
-        if (obj instanceof Boolean) return obj;
-        if (obj instanceof String) return obj;
-        return obj.toString();
-    }
-
-    private static Object fromJsonValue(Object obj, HolderLookup.Provider provider) {
-        if (obj == null) return null;
-        if (obj instanceof Map<?, ?>) {
-            @SuppressWarnings("unchecked")
-            Map<String, Object> map = (Map<String, Object>) obj;
-            if (map.containsKey("$blockpos")) {
-                Object val = map.get("$blockpos");
-                if (val instanceof List<?> list && list.size() == 3) {
-                    int x = ((Number) list.get(0)).intValue();
-                    int y = ((Number) list.get(1)).intValue();
-                    int z = ((Number) list.get(2)).intValue();
-                    return new BlockPos(x, y, z);
-                }
-            }
-            if (map.containsKey("$set")) {
-                Object val = map.get("$set");
-                if (val instanceof List<?> list) {
-                    Set<Object> set = new LinkedHashSet<>();
-                    for (Object e : list) set.add(fromJsonValue(e, provider));
-                    return set;
-                }
-            }
-            if (map.containsKey("$tuple2")) {
-                Object val = map.get("$tuple2");
-                if (val instanceof List<?> list && list.size() == 2) {
-                    return new T2<>(fromJsonValue(list.get(0), provider), fromJsonValue(list.get(1), provider));
-                }
-            }
-            if (map.containsKey("$tuple3")) {
-                Object val = map.get("$tuple3");
-                if (val instanceof List<?> list && list.size() == 3) {
-                    return new T3<>(fromJsonValue(list.get(0), provider), fromJsonValue(list.get(1), provider), fromJsonValue(list.get(2), provider));
-                }
-            }
-            if (map.containsKey("$iitemhandler")) {
-                Object val = map.get("$iitemhandler");
-                Map<Object, Object> data = (Map<Object, Object>) fromJsonValue(val, provider);
-                CompoundTag nbt = toNBT(data, provider);
-                return deserializeItemHandler(nbt, provider);
-            }
-            if (map.containsKey("$itemstack")) {
-                Object val = map.get("$itemstack");
-                Map<Object, Object> data = (Map<Object, Object>) fromJsonValue(val, provider);
-                CompoundTag nbt = toNBT(data, provider);
-                return ItemStack.parse(provider, nbt).orElse(ItemStack.EMPTY);
-            }
-            Map<Object, Object> out = new HashMap<>();
-            for (Map.Entry<String, Object> e : map.entrySet()) {
-                Object key = e.getKey();
-                if (key instanceof String s && isUuidString(s)) {
-                    try {
-                        key = UUID.fromString(s);
-                    } catch (IllegalArgumentException ignored) {}
-                }
-                out.put(key, fromJsonValue(e.getValue(), provider));
-            }
-            return out;
-        }
-        if (obj instanceof List<?>) {
-            List<Object> list = (List<Object>) obj;
-            List<Object> out = new ArrayList<>();
-            for (Object e : list) out.add(fromJsonValue(e, provider));
-            return out;
-        }
-        if (obj instanceof String s) {
-            if (isUuidString(s)) {
-                try {
-                    return UUID.fromString(s);
-                } catch (IllegalArgumentException ignored) {}
-            }
-            return s;
-        }
-        return obj;
-    }
-
-    private static boolean isUuidString(String s) {
-        return s != null && UUID_PATTERN.matcher(s).matches();
-    }
 }
