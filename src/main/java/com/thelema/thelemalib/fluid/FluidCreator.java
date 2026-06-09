@@ -3,6 +3,7 @@ package com.thelema.thelemalib.fluid;
 import com.mojang.blaze3d.shaders.FogShape;
 import net.minecraft.client.Camera;
 import net.minecraft.client.renderer.FogRenderer;
+import net.minecraft.core.BlockPos;
 import net.minecraft.core.particles.ParticleOptions;
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.core.registries.Registries;
@@ -11,9 +12,11 @@ import net.minecraft.sounds.SoundEvents;
 import net.minecraft.world.item.BucketItem;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.Items;
+import net.minecraft.world.level.BlockGetter;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.LiquidBlock;
+import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.material.FlowingFluid;
 import net.minecraft.world.level.material.Fluid;
 import net.neoforged.bus.api.IEventBus;
@@ -206,7 +209,12 @@ public class FluidCreator {
 
         // 注册流体方块
         Supplier<LiquidBlock> block = blockReg.register(name + "_block", () -> new LiquidBlock(stillFluid.get(),
-                Block.Properties.ofFullCopy(Blocks.WATER).noLootTable()));
+                Block.Properties.ofFullCopy(Blocks.WATER).noLootTable()) {
+            @Override
+            public int getLightEmission(BlockState state, BlockGetter level, BlockPos pos) {
+                return fluidType.get().getLightLevel(); // 获取 FluidType 的 lightLevel
+            }
+        });
 
         // 注册桶
         Supplier<BucketItem> bucket = itemReg.register(name + "_bucket", () -> new BucketItem(stillFluid.get(),
