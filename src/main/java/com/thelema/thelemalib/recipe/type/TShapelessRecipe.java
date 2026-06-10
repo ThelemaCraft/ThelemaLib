@@ -2,59 +2,57 @@ package com.thelema.thelemalib.recipe.type;
 
 import com.thelema.thelemalib.recipe.RecipeHandle;
 import com.thelema.thelemalib.recipe.TRecipeSerializers;
+import it.unimi.dsi.fastutil.ints.IntList;
 import net.minecraft.core.HolderLookup;
+import net.minecraft.core.NonNullList;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.crafting.*;
 import net.minecraft.world.level.Level;
+import net.neoforged.neoforge.common.util.RecipeMatcher;
 
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 
-public record TShapelessRecipe(String group, List<Ingredient> ingredients, ItemStack result,
-                               RecipeHandle handle) implements CraftingRecipe {
+public record TShapelessRecipe(
+        NonNullList<Ingredient> ingredients,
+        ItemStack template,
+        RecipeHandle handle) implements CraftingRecipe {
 
-    public TShapelessRecipe(String group, List<Ingredient> ingredients, ItemStack result, RecipeHandle handle) {
-        this.group = group;
+    public TShapelessRecipe(NonNullList<Ingredient> ingredients, ItemStack template, RecipeHandle handle) {
         this.ingredients = ingredients;
-        this.result = result;
+        this.template = template.copy();
         this.handle = handle == null ? RecipeHandle.EMPTY : handle;
     }
 
     @Override
     public boolean matches(CraftingInput input, Level level) {
-        if (input.ingredientCount() != ingredients.size()) return false;
-        List<ItemStack> inputs = new ArrayList<>(input.items());
-        for (Ingredient ing : ingredients) {
-            boolean matched = false;
-            for (int i = 0; i < inputs.size(); i++) {
-                if (ing.test(inputs.get(i))) {
-                    inputs.remove(i);
-                    matched = true;
-                    break;
-                }
-            }
-            if (!matched) return false;
+        if (input.ingredientCount() != ingredients.size()) {
+            return false;
         }
-        return true;
+        List<ItemStack> nonEmptyItems = new ArrayList<>(input.ingredientCount());
+        for (ItemStack item : input.items()) {
+            if (!item.isEmpty()) {
+                nonEmptyItems.add(item);
+            }
+        }
+        return RecipeMatcher.findMatches(nonEmptyItems, ingredients) != null;
     }
 
     @Override
     public ItemStack assemble(CraftingInput input, HolderLookup.Provider registries) {
-        ItemStack output = result.copy();
-        if (!handle.copy().isEmpty()) {
-            handle.apply(output, input);
-        }
-        return output;
+        ItemStack output = template.copy();
+        return handle.apply(output, input);
     }
 
     @Override
-    public boolean canCraftInDimensions(int w, int h) {
-        return true;
+    public boolean canCraftInDimensions(int width, int height) {
+        return width * height >= ingredients.size();
     }
 
     @Override
     public ItemStack getResultItem(HolderLookup.Provider registries) {
-        return result;
+        return template.copy();
     }
 
     @Override
@@ -70,5 +68,10 @@ public record TShapelessRecipe(String group, List<Ingredient> ingredients, ItemS
     @Override
     public CraftingBookCategory category() {
         return CraftingBookCategory.MISC;
+    }
+
+    @Override
+    public NonNullList<Ingredient> getIngredients() {
+        return ingredients;
     }
 }

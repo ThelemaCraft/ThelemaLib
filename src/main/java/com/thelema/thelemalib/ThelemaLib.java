@@ -1,6 +1,10 @@
 package com.thelema.thelemalib;
 
 import com.thelema.thelemalib.config.TConfig;
+import com.thelema.thelemalib.msg.TTManager;
+import com.thelema.thelemalib.recipe.TRecipeSerializers;
+import com.thelema.thelemalib.recipe.TRecipeTypes;
+import com.thelema.thelemalib.recipe.serializer.TShapedSerializer;
 import org.slf4j.Logger;
 
 import com.mojang.logging.LogUtils;
@@ -22,6 +26,9 @@ public class ThelemaLib {
     public ThelemaLib(IEventBus bus, ModContainer cont) {
         
         bus.addListener(this::commonSetup);
+
+        TRecipeSerializers.SERIALIZERS.register(bus);
+        TRecipeTypes.TYPES.register(bus);
 
 
         cont.registerConfig(ModConfig.Type.COMMON, TConfig.SPEC);

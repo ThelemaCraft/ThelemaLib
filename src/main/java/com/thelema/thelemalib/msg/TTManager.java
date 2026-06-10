@@ -14,7 +14,7 @@ public class TTManager {
 
     private static final List<Consumer<ItemTooltipEvent>> HANDLERS = new ArrayList<>();
 
-    public static void register(Consumer<ItemTooltipEvent> handler) {
+    public static void add(Consumer<ItemTooltipEvent> handler) {
         HANDLERS.add(handler);
     }
 
