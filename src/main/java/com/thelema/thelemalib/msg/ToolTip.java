@@ -197,7 +197,7 @@ public class ToolTip {
 
     // ---------- 构建输出 ----------
     public List<Component> build() {
-        return build(0);
+        return build(target == null ? 0 : target.size());
     }
 
     public List<Component> build(int index) {

@@ -2,9 +2,11 @@ package com.thelema.thelemalib.msg;
 
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.item.Item;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.event.entity.player.ItemTooltipEvent;
+import net.neoforged.neoforge.registries.DeferredHolder;
 
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -19,9 +21,27 @@ public class TTManager {
      * 注册针对特定物品的 Tooltip 处理器
      * @param itemId 物品注册名，如 "minecraft:diamond"
      */
-    public static void register(String itemId, Consumer<ItemTooltipEvent> handler) {
+    public static void add(String itemId, Consumer<ItemTooltipEvent> handler) {
         HANDLERS.put(itemId, handler);
     }
+
+    /**
+     * 通过 DeferredHolder 注册 Tooltip 处理器
+     * @param holder 物品的 DeferredHolder
+     */
+    public static void add(DeferredHolder<Item, ? extends Item> holder, Consumer<ItemTooltipEvent> handler) {
+        add(holder.getId().toString(), handler);
+    }
+
+    /**
+     * 通过 Item 实例注册 Tooltip 处理器
+     * @param item 物品实例
+     */
+    public static void add(Item item, Consumer<ItemTooltipEvent> handler) {
+        ResourceLocation id = BuiltInRegistries.ITEM.getKey(item);
+        add(id.toString(), handler);
+    }
+
 
     @SubscribeEvent
     public static void onItemTooltip(ItemTooltipEvent event) {
