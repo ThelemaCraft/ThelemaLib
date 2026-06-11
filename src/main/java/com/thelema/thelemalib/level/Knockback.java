@@ -1,4 +1,4 @@
-package com.thelema.thrive.util;
+package com.thelema.thelemalib.level;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;

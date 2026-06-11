@@ -18,8 +18,6 @@ public record TShapedRecipe(
         this.pattern = pattern;
         this.template = template;
         this.handle = handle == null ? RecipeHandle.EMPTY : handle;
-        ThelemaLib.LOGGER.info("[TEST4 DEBUG] TShapedRecipe created: pattern={}, template={}, handle ops count={}",
-                pattern, template, handle == null ? 0 : handle.operations().size());
     }
 
     public boolean matches(CraftingInput input, Level level) {

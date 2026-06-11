@@ -7,16 +7,20 @@ import com.thelema.thelemalib.recipe.type.TShapedRecipe;
 import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
 import net.minecraft.world.item.crafting.RecipeSerializer;
 import net.minecraft.world.item.crafting.ShapedRecipePattern;
 import org.jetbrains.annotations.NotNull;
 
+import java.util.Optional;
+
 public class TShapedSerializer implements RecipeSerializer<TShapedRecipe> {
     public static final MapCodec<TShapedRecipe> CODEC = RecordCodecBuilder.mapCodec(inst -> inst.group(
             ShapedRecipePattern.MAP_CODEC.forGetter(TShapedRecipe::pattern),
-            ItemStack.CODEC.fieldOf("template").forGetter(TShapedRecipe::template),
+            ItemStack.CODEC.optionalFieldOf("template").forGetter(r -> Optional.of(r.template())),
             RecipeHandle.CODEC.optionalFieldOf("handle", RecipeHandle.EMPTY).forGetter(TShapedRecipe::handle)
-    ).apply(inst, TShapedRecipe::new));
+    ).apply(inst, (pattern, templateOpt, handle) ->
+            new TShapedRecipe(pattern, templateOpt.orElse(new ItemStack(Items.STRUCTURE_VOID)), handle)));
 
     @Override
     public @NotNull MapCodec<TShapedRecipe> codec() {

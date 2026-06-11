@@ -8,11 +8,13 @@ import net.minecraft.core.NonNullList;
 import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
 import net.minecraft.world.item.crafting.Ingredient;
 import net.minecraft.world.item.crafting.RecipeSerializer;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.List;
+import java.util.Optional;
 
 public class TShapelessSerializer implements RecipeSerializer<TShapelessRecipe> {
     public static final MapCodec<TShapelessRecipe> CODEC = RecordCodecBuilder.mapCodec(inst -> inst.group(
@@ -24,9 +26,10 @@ public class TShapelessSerializer implements RecipeSerializer<TShapelessRecipe> 
                     },
                     List::copyOf
             ).fieldOf("ingredients").forGetter(TShapelessRecipe::ingredients),
-            ItemStack.CODEC.fieldOf("template").forGetter(TShapelessRecipe::template),
+            ItemStack.CODEC.optionalFieldOf("template").forGetter(r -> Optional.of(r.template())),
             RecipeHandle.CODEC.optionalFieldOf("handle", RecipeHandle.EMPTY).forGetter(TShapelessRecipe::handle)
-    ).apply(inst, TShapelessRecipe::new));
+    ).apply(inst, (ingredients, templateOpt, handle) ->
+            new TShapelessRecipe(ingredients, templateOpt.orElse(new ItemStack(Items.STRUCTURE_VOID)), handle)));
 
     @Override
     public @NotNull MapCodec<TShapelessRecipe> codec() {
