@@ -12,7 +12,9 @@ import net.minecraft.nbt.NbtOps;
 import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.codec.ByteBufCodecs;
 import net.minecraft.network.codec.StreamCodec;
+import net.minecraft.resources.ResourceKey;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.EquipmentSlotGroup;
 import net.minecraft.world.entity.ai.attributes.Attribute;
 import net.minecraft.world.entity.ai.attributes.AttributeModifier;
@@ -146,6 +148,8 @@ public record RecipeHandle(List<Operation> operations) {
             return executeIf(ifOp, result, inputs);
         } else if (op instanceof Operation.ModifyDataComp modComp) {
             return handleModifyDataComp(modComp, result);
+        } else if (op instanceof Operation.Sound sound) {
+            return handleSound(sound, result);
         }
         return result.copy();
     }
@@ -329,10 +333,23 @@ public record RecipeHandle(List<Operation> operations) {
 
     private ItemStack applyArmorModification(ItemStack original, Holder<Attribute> attribute,
                                              EquipmentSlotGroup slot, String op, double value) {
-        if (!(original.getItem() instanceof ArmorItem)) return original.copy();
+        if (!(original.getItem() instanceof ArmorItem armorItem)) return original.copy();
         ItemStack result = original.copy();
 
-        double current = getCurrentArmorValue(result, attribute, slot);
+        // 自动确定实际槽位
+        EquipmentSlotGroup actualSlot = slot;
+        if (actualSlot == EquipmentSlotGroup.ANY) {
+            EquipmentSlot eqSlot = armorItem.getEquipmentSlot();
+            actualSlot = switch (eqSlot) {
+                case HEAD -> EquipmentSlotGroup.HEAD;
+                case CHEST -> EquipmentSlotGroup.CHEST;
+                case LEGS -> EquipmentSlotGroup.LEGS;
+                case FEET -> EquipmentSlotGroup.FEET;
+                default -> EquipmentSlotGroup.ANY;
+            };
+        }
+
+        double current = getCurrentArmorValue(result, attribute, actualSlot);
         double newValue = switch (op) {
             case "+", "add" -> current + value;
             case "=", "set" -> value;
@@ -344,24 +361,50 @@ public record RecipeHandle(List<Operation> operations) {
         };
         newValue = Math.max(0, newValue);
 
-        ItemAttributeModifiers modifiers = result.getOrDefault(DataComponents.ATTRIBUTE_MODIFIERS, ItemAttributeModifiers.EMPTY);
+        // 获取或初始化修饰符组件
+        ItemAttributeModifiers currentModifiers = result.get(DataComponents.ATTRIBUTE_MODIFIERS);
+        if (currentModifiers == null || currentModifiers.modifiers().isEmpty()) {
+            currentModifiers = armorItem.getDefaultAttributeModifiers();
+        }
+
+        // 尝试查找匹配的修饰符条目并修改其值，使用原版 ID 格式
+        boolean found = false;
         var builder = ItemAttributeModifiers.builder();
-        for (ItemAttributeModifiers.Entry entry : modifiers.modifiers()) {
-            if (!(entry.attribute().equals(attribute) && entry.slot().equals(slot))) {
+        for (ItemAttributeModifiers.Entry entry : currentModifiers.modifiers()) {
+            if (entry.attribute().equals(attribute) && entry.slot().equals(actualSlot)) {
+                // 直接修改该条目：保留原 ID 和 operation，仅更新 amount
+                AttributeModifier updated = new AttributeModifier(entry.modifier().id(), newValue, entry.modifier().operation());
+                builder.add(entry.attribute(), updated, entry.slot());
+                found = true;
+            } else {
                 builder.add(entry.attribute(), entry.modifier(), entry.slot());
             }
         }
-        // Use getKey() for safer resource location retrieval
-        if (attribute.getKey() != null){
+
+        // 如果未找到匹配条目（例如该属性本就不存在），则添加一个新的，ID 仿照原版风格
+        if (!found) {
             ResourceLocation attrId = attribute.getKey().location();
-            ResourceLocation modifierId = ResourceLocation.parse(ThelemaLib.MOD_ID + ":" + attrId.getPath() + "_mod");
+            ResourceLocation modifierId = ResourceLocation.parse("minecraft:" + attrId.getPath() + "." + actualSlot.getSerializedName());
             AttributeModifier newMod = new AttributeModifier(modifierId, newValue, AttributeModifier.Operation.ADD_VALUE);
-            builder.add(attribute, newMod, slot);
-            result.set(DataComponents.ATTRIBUTE_MODIFIERS, builder.build());
+            builder.add(attribute, newMod, actualSlot);
         }
+
+        result.set(DataComponents.ATTRIBUTE_MODIFIERS, builder.build());
         return result;
     }
-
+    private ItemStack handleSound(Operation.Sound sound, ItemStack result) {
+        ItemStack newStack = result.copy();
+        // 将声音数据写入 custom_data.sound
+        CustomData data = newStack.getOrDefault(DataComponents.CUSTOM_DATA, CustomData.EMPTY);
+        CompoundTag tag = data.copyTag();
+        CompoundTag soundTag = new CompoundTag();
+        soundTag.putString("sound_id", sound.soundId());
+        soundTag.putFloat("volume", sound.volume());
+        soundTag.putFloat("pitch", sound.pitch());
+        tag.put("sound", soundTag);
+        newStack.set(DataComponents.CUSTOM_DATA, CustomData.of(tag));
+        return newStack;
+    }
     @SuppressWarnings("unchecked")
     private ItemStack handleModifyDataComp(Operation.ModifyDataComp modComp, ItemStack result) {
         if (result.isEmpty()) return result;

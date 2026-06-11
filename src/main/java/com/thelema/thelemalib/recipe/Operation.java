@@ -30,6 +30,7 @@ public interface Operation {
             case "modify_armor": return ModifyArmor.MAP_CODEC;
             case "modify_armor_toughness": return ModifyArmorToughness.MAP_CODEC;
             case "modify_data_comp": return ModifyDataComp.MAP_CODEC;
+            case "sound": return Sound.MAP_CODEC;
             default: throw new IllegalArgumentException("Unknown operation type: " + type);
         }
     });
@@ -369,5 +370,14 @@ public interface Operation {
                 Codec.STRING.fieldOf("value").forGetter(ModifyDataComp::value)
         ).apply(inst, ModifyDataComp::new));
         @Override public String type() { return "modify_data_comp"; }
+    }
+
+    record Sound(String soundId, float volume, float pitch) implements Operation {
+        public static final MapCodec<Sound> MAP_CODEC = RecordCodecBuilder.mapCodec(inst -> inst.group(
+                Codec.STRING.fieldOf("sound_id").forGetter(Sound::soundId),
+                Codec.FLOAT.optionalFieldOf("volume", 1.0F).forGetter(Sound::volume),
+                Codec.FLOAT.optionalFieldOf("pitch", 1.0F).forGetter(Sound::pitch)
+        ).apply(inst, Sound::new));
+        @Override public String type() { return "sound"; }
     }
 }
