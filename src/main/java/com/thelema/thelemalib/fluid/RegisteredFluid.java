@@ -1,5 +1,8 @@
 package com.thelema.thelemalib.fluid;
 
+import net.minecraft.sounds.SoundEvents;
+import net.minecraft.world.effect.MobEffectInstance;
+import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.item.BucketItem;
 import net.minecraft.world.level.block.LiquidBlock;
 import net.minecraft.world.level.material.FlowingFluid;
@@ -14,6 +17,9 @@ public record RegisteredFluid(
         Supplier<FluidType> fluidType,
         Supplier<FlowingFluid> stillFluid,
         Supplier<FlowingFluid> flowingFluid,
-        Supplier<LiquidBlock> block,
+        Supplier<? extends LiquidBlock> block,
         Supplier<BucketItem> bucket
-) {}
+
+) {
+
+}
