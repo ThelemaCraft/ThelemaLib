@@ -1,4 +1,4 @@
-package com.thelema.thelemalib.msg;
+package com.thelema.thelemalib.tip;
 
 import net.minecraft.ChatFormatting;
 import net.minecraft.network.chat.Component;
