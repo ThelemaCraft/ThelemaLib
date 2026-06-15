@@ -233,7 +233,7 @@ public final class MapHelper {
         if (key instanceof String s) return s;
         TypeHandler<?> handler = findHandler(key.getClass());
         if (handler != null && handler.allowedAsKey()) {
-            return "$" + handler.typeId() + "|" + encodeKeyWithHandler(handler, key, provider);
+            return encodeKeyWithHandler(handler, key, provider);
         }
         return null;
     }
