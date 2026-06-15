@@ -407,19 +407,18 @@ public record RecipeHandle(List<Operation> operations) {
         return applyAttributeModification(original, Attributes.ATTACK_DAMAGE, slot, damage.op(), damage.value());
     }
 
-    // 属性修饰符的修改
     private ItemStack applyAttributeModification(ItemStack original, Holder<Attribute> attribute,
                                                  EquipmentSlotGroup slot, String op, double value) {
+        if (!(original.getItem() instanceof ArmorItem armorItem)) return original.copy();
         ItemStack result = original.copy();
 
-        // 确保存在属性修饰符组件（如果为空则初始化一个空的）
+        // 强制初始化默认修饰符（避免空列表）
         ItemAttributeModifiers currentModifiers = result.get(DataComponents.ATTRIBUTE_MODIFIERS);
-        if (currentModifiers == null) {
-            currentModifiers = ItemAttributeModifiers.builder().build();
+        if (currentModifiers == null || currentModifiers.modifiers().isEmpty()) {
+            currentModifiers = armorItem.getDefaultAttributeModifiers();
             result.set(DataComponents.ATTRIBUTE_MODIFIERS, currentModifiers);
         }
 
-        // 查找目标条目的当前 amount
         double oldAmount = 0.0;
         for (ItemAttributeModifiers.Entry entry : currentModifiers.modifiers()) {
             if (entry.attribute().equals(attribute) && entry.slot().equals(slot)) {
@@ -431,7 +430,6 @@ public record RecipeHandle(List<Operation> operations) {
         double newAmount = applyArithmetic(oldAmount, value, op);
 
 
-        // 构建新修饰符列表
         ItemAttributeModifiers.Builder builder = ItemAttributeModifiers.builder();
         boolean replaced = false;
         for (ItemAttributeModifiers.Entry entry : currentModifiers.modifiers()) {
@@ -444,7 +442,6 @@ public record RecipeHandle(List<Operation> operations) {
             }
         }
         if (!replaced) {
-            // 添加新修饰符（使用原版风格ID）
             ResourceLocation attrId = attribute.getKey().location();
             ResourceLocation modifierId = ResourceLocation.parse("minecraft:" + attrId.getPath() + "." + slot.getSerializedName());
             AttributeModifier newMod = new AttributeModifier(modifierId, newAmount, AttributeModifier.Operation.ADD_VALUE);
