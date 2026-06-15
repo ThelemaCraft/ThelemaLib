@@ -54,6 +54,8 @@ public record RecipeHandle(List<Operation> operations) {
             case "+", "add" -> oldVal + val;
             case "=", "set" -> val;
             case "*", "multiply" -> oldVal * val;
+            case "-", "minus" -> oldVal - val;
+            case "/", "except" -> oldVal / val;
             default -> {
                 ThelemaLib.LOGGER.warn("Unknown op '{}', keeping old value", op);
                 yield oldVal;
@@ -178,14 +180,18 @@ public record RecipeHandle(List<Operation> operations) {
             return handleModifyDataComp(modComp, result);
         } else if (op instanceof Operation.Sound sound) {
             return handleSound(sound, result);
+        } else if (op instanceof Operation.ModifyAttackSpeed speed) {
+            return handleModifyAttackSpeed(speed, result);
+        } else if (op instanceof Operation.ModifyAttackDamage damage) {
+            return handleModifyAttackDamage(damage, result);
         }
         return result.copy();
     }
 
     // ---------- 具体实现 ----------
     private ItemStack handleSetResult(Operation.SetResult setResult, ItemStack original, ItemStack current) {
-        if (setResult.itemId().isPresent()) {
-            ResourceLocation id = ResourceLocation.tryParse(setResult.itemId().get());
+        if (setResult.new_item_id().isPresent()) {
+            ResourceLocation id = ResourceLocation.tryParse(setResult.new_item_id().get());
             if (id != null) {
                 Item item = BuiltInRegistries.ITEM.get(id);
                 if (item != Items.AIR) {
@@ -303,60 +309,12 @@ public record RecipeHandle(List<Operation> operations) {
 
     private ItemStack handleModifyArmor(Operation.ModifyArmor armor, ItemStack original) {
         EquipmentSlotGroup slot = parseSlot(armor.slot(), original);
-        return applyArmorModification(original, Attributes.ARMOR, slot, armor.op(), armor.value());
+        return applyAttributeModification(original, Attributes.ARMOR, slot, armor.op(), armor.value());
     }
 
     private ItemStack handleModifyArmorToughness(Operation.ModifyArmorToughness toughness, ItemStack original) {
         EquipmentSlotGroup slot = parseSlot(toughness.slot(), original);
-        return applyArmorModification(original, Attributes.ARMOR_TOUGHNESS, slot, toughness.op(), toughness.value());
-    }
-
-    private ItemStack applyArmorModification(ItemStack original, Holder<Attribute> attribute,
-                                             EquipmentSlotGroup slot, String op, double value) {
-        if (!(original.getItem() instanceof ArmorItem armorItem)) return original.copy();
-        ItemStack result = original.copy();
-
-        // 强制初始化默认修饰符（避免空列表）
-        ItemAttributeModifiers currentModifiers = result.get(DataComponents.ATTRIBUTE_MODIFIERS);
-        if (currentModifiers == null || currentModifiers.modifiers().isEmpty()) {
-            currentModifiers = armorItem.getDefaultAttributeModifiers();
-            result.set(DataComponents.ATTRIBUTE_MODIFIERS, currentModifiers);
-        }
-
-        // 查找目标条目的当前 amount
-        double oldAmount = 0.0;
-        for (ItemAttributeModifiers.Entry entry : currentModifiers.modifiers()) {
-            if (entry.attribute().equals(attribute) && entry.slot().equals(slot)) {
-                oldAmount = entry.modifier().amount();
-                break;
-            }
-        }
-
-        // 应用计算
-        double newAmount = applyArithmetic(oldAmount, value, op);
-        newAmount = Math.max(0, newAmount);
-
-        // 构建新修饰符列表
-        ItemAttributeModifiers.Builder builder = ItemAttributeModifiers.builder();
-        boolean replaced = false;
-        for (ItemAttributeModifiers.Entry entry : currentModifiers.modifiers()) {
-            if (entry.attribute().equals(attribute) && entry.slot().equals(slot)) {
-                AttributeModifier newMod = new AttributeModifier(entry.modifier().id(), newAmount, entry.modifier().operation());
-                builder.add(attribute, newMod, slot);
-                replaced = true;
-            } else {
-                builder.add(entry.attribute(), entry.modifier(), entry.slot());
-            }
-        }
-        if (!replaced) {
-            ResourceLocation attrId = attribute.getKey().location();
-            ResourceLocation modifierId = ResourceLocation.parse("minecraft:" + attrId.getPath() + "." + slot.getSerializedName());
-            AttributeModifier newMod = new AttributeModifier(modifierId, newAmount, AttributeModifier.Operation.ADD_VALUE);
-            builder.add(attribute, newMod, slot);
-        }
-
-        result.set(DataComponents.ATTRIBUTE_MODIFIERS, builder.build());
-        return result;
+        return applyAttributeModification(original, Attributes.ARMOR_TOUGHNESS, slot, toughness.op(), toughness.value());
     }
 
     private ItemStack handleSound(Operation.Sound sound, ItemStack result) {
@@ -439,6 +397,64 @@ public record RecipeHandle(List<Operation> operations) {
         return newStack;
     }
 
+    private ItemStack handleModifyAttackSpeed(Operation.ModifyAttackSpeed speed, ItemStack original) {
+        EquipmentSlotGroup slot = parseSlot(speed.slot(), original);
+        return applyAttributeModification(original, Attributes.ATTACK_SPEED, slot, speed.op(), speed.value());
+    }
+
+    private ItemStack handleModifyAttackDamage(Operation.ModifyAttackDamage damage, ItemStack original) {
+        EquipmentSlotGroup slot = parseSlot(damage.slot(), original);
+        return applyAttributeModification(original, Attributes.ATTACK_DAMAGE, slot, damage.op(), damage.value());
+    }
+
+    // 属性修饰符的修改
+    private ItemStack applyAttributeModification(ItemStack original, Holder<Attribute> attribute,
+                                                 EquipmentSlotGroup slot, String op, double value) {
+        ItemStack result = original.copy();
+
+        // 确保存在属性修饰符组件（如果为空则初始化一个空的）
+        ItemAttributeModifiers currentModifiers = result.get(DataComponents.ATTRIBUTE_MODIFIERS);
+        if (currentModifiers == null) {
+            currentModifiers = ItemAttributeModifiers.builder().build();
+            result.set(DataComponents.ATTRIBUTE_MODIFIERS, currentModifiers);
+        }
+
+        // 查找目标条目的当前 amount
+        double oldAmount = 0.0;
+        for (ItemAttributeModifiers.Entry entry : currentModifiers.modifiers()) {
+            if (entry.attribute().equals(attribute) && entry.slot().equals(slot)) {
+                oldAmount = entry.modifier().amount();
+                break;
+            }
+        }
+
+        double newAmount = applyArithmetic(oldAmount, value, op);
+
+
+        // 构建新修饰符列表
+        ItemAttributeModifiers.Builder builder = ItemAttributeModifiers.builder();
+        boolean replaced = false;
+        for (ItemAttributeModifiers.Entry entry : currentModifiers.modifiers()) {
+            if (entry.attribute().equals(attribute) && entry.slot().equals(slot)) {
+                AttributeModifier newMod = new AttributeModifier(entry.modifier().id(), newAmount, entry.modifier().operation());
+                builder.add(attribute, newMod, slot);
+                replaced = true;
+            } else {
+                builder.add(entry.attribute(), entry.modifier(), entry.slot());
+            }
+        }
+        if (!replaced) {
+            // 添加新修饰符（使用原版风格ID）
+            ResourceLocation attrId = attribute.getKey().location();
+            ResourceLocation modifierId = ResourceLocation.parse("minecraft:" + attrId.getPath() + "." + slot.getSerializedName());
+            AttributeModifier newMod = new AttributeModifier(modifierId, newAmount, AttributeModifier.Operation.ADD_VALUE);
+            builder.add(attribute, newMod, slot);
+        }
+
+        result.set(DataComponents.ATTRIBUTE_MODIFIERS, builder.build());
+        return result;
+    }
+
     // 字符串转 EquipmentSlotGroup，支持 auto
     private EquipmentSlotGroup parseSlot(String slot, ItemStack stack) {
         if ("auto".equals(slot)) {
@@ -449,6 +465,7 @@ public record RecipeHandle(List<Operation> operations) {
                     case CHEST -> EquipmentSlotGroup.CHEST;
                     case LEGS -> EquipmentSlotGroup.LEGS;
                     case FEET -> EquipmentSlotGroup.FEET;
+                    case BODY -> EquipmentSlotGroup.BODY;
                     default -> EquipmentSlotGroup.ANY;
                 };
             }
@@ -459,6 +476,10 @@ public record RecipeHandle(List<Operation> operations) {
             case "chest" -> EquipmentSlotGroup.CHEST;
             case "legs" -> EquipmentSlotGroup.LEGS;
             case "feet" -> EquipmentSlotGroup.FEET;
+            case "body" -> EquipmentSlotGroup.BODY;
+            case "mainhand" -> EquipmentSlotGroup.MAINHAND;
+            case "offhand" -> EquipmentSlotGroup.OFFHAND;
+            case "hand" -> EquipmentSlotGroup.HAND;
             default -> EquipmentSlotGroup.ANY;
         };
     }

@@ -31,6 +31,8 @@ public interface Operation {
             case "modify_armor_toughness": return ModifyArmorToughness.MAP_CODEC;
             case "modify_data_comp": return ModifyDataComp.MAP_CODEC;
             case "sound": return Sound.MAP_CODEC;
+            case "modify_attack_speed": return ModifyAttackSpeed.MAP_CODEC;
+            case "modify_attack_damage": return ModifyAttackDamage.MAP_CODEC;
             default: throw new IllegalArgumentException("Unknown operation type: " + type);
         }
     });
@@ -289,9 +291,9 @@ public interface Operation {
         @Override public String type() { return "if"; }
     }
 
-    record SetResult(Optional<String> itemId) implements Operation {
+    record SetResult(Optional<String> new_item_id) implements Operation {
         public static final MapCodec<SetResult> MAP_CODEC = RecordCodecBuilder.mapCodec(inst -> inst.group(
-                Codec.STRING.optionalFieldOf("item_id").forGetter(SetResult::itemId)
+                Codec.STRING.optionalFieldOf("new_item_id").forGetter(SetResult::new_item_id)
         ).apply(inst, SetResult::new));
         @Override public String type() { return "set_result"; }
     }
@@ -379,5 +381,27 @@ public interface Operation {
                 Codec.FLOAT.optionalFieldOf("pitch", 1.0F).forGetter(Sound::pitch)
         ).apply(inst, Sound::new));
         @Override public String type() { return "sound"; }
+    }
+
+    // 攻击速度修改
+    record ModifyAttackSpeed(String slot, String op, double value) implements Operation {
+        public static final MapCodec<ModifyAttackSpeed> MAP_CODEC = RecordCodecBuilder.mapCodec(inst ->
+                inst.group(
+                        Codec.STRING.fieldOf("slot").forGetter(ModifyAttackSpeed::slot),
+                        Codec.STRING.fieldOf("op").forGetter(ModifyAttackSpeed::op),
+                        Codec.DOUBLE.fieldOf("value").forGetter(ModifyAttackSpeed::value)
+                ).apply(inst, ModifyAttackSpeed::new));
+        @Override public String type() { return "modify_attack_speed"; }
+    }
+
+    // 攻击伤害修改
+    record ModifyAttackDamage(String slot, String op, double value) implements Operation {
+        public static final MapCodec<ModifyAttackDamage> MAP_CODEC = RecordCodecBuilder.mapCodec(inst ->
+                inst.group(
+                        Codec.STRING.fieldOf("slot").forGetter(ModifyAttackDamage::slot),
+                        Codec.STRING.fieldOf("op").forGetter(ModifyAttackDamage::op),
+                        Codec.DOUBLE.fieldOf("value").forGetter(ModifyAttackDamage::value)
+                ).apply(inst, ModifyAttackDamage::new));
+        @Override public String type() { return "modify_attack_damage"; }
     }
 }
