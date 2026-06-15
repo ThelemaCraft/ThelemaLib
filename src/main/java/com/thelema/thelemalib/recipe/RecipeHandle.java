@@ -12,7 +12,6 @@ import net.minecraft.nbt.NbtOps;
 import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.codec.ByteBufCodecs;
 import net.minecraft.network.codec.StreamCodec;
-import net.minecraft.resources.ResourceKey;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.EquipmentSlotGroup;
@@ -49,7 +48,37 @@ public record RecipeHandle(List<Operation> operations) {
             }
     );
 
-    // ---------- apply 入口 ----------
+    // ---------- 统一算术运算 ----------
+    private double applyArithmetic(double oldVal, double val, String op) {
+        return switch (op) {
+            case "+", "add" -> oldVal + val;
+            case "=", "set" -> val;
+            case "*", "multiply" -> oldVal * val;
+            default -> {
+                ThelemaLib.LOGGER.warn("Unknown op '{}', keeping old value", op);
+                yield oldVal;
+            }
+        };
+    }
+
+    // ---------- 通用数值组件修改 ----------
+    private ItemStack modifyIntComponent(ItemStack original, DataComponentType<Integer> comp, String op, int val) {
+        int old = original.getOrDefault(comp, 0);
+        int newVal = (int) applyArithmetic(old, val, op);
+        ItemStack result = original.copy();
+        result.set(comp, newVal);
+        return result;
+    }
+
+    private ItemStack modifyDoubleComponent(ItemStack original, DataComponentType<Double> comp, String op, double val) {
+        double old = original.getOrDefault(comp, 0.0);
+        double newVal = applyArithmetic(old, val, op);
+        ItemStack result = original.copy();
+        result.set(comp, newVal);
+        return result;
+    }
+
+    // ---------- 核心流程 ----------
     public ItemStack apply(ItemStack initialOutput, CraftingInput input) {
         return applyCommon(initialOutput, input.items());
     }
@@ -70,7 +99,6 @@ public record RecipeHandle(List<Operation> operations) {
         return applyCommon(initialOutput, items);
     }
 
-    // ---------- 核心流程 ----------
     private ItemStack applyCommon(ItemStack initialOutput, List<ItemStack> globalInputs) {
         ItemStack finalOutput = initialOutput.copy();
         List<ItemStack> inputs = new ArrayList<>(globalInputs);
@@ -133,7 +161,7 @@ public record RecipeHandle(List<Operation> operations) {
         } else if (op instanceof Operation.Remove remove) {
             return handleRemove(remove, result);
         } else if (op instanceof Operation.ModifyDamage damage) {
-            return handleModifyDamage(damage, result);
+            return modifyIntComponent(result, DataComponents.DAMAGE, damage.op(), damage.value());
         } else if (op instanceof Operation.ModifyMaxDamage maxDamage) {
             return handleModifyMaxDamage(maxDamage, result);
         } else if (op instanceof Operation.ModifyCount count) {
@@ -208,34 +236,9 @@ public record RecipeHandle(List<Operation> operations) {
         return result;
     }
 
-    private ItemStack handleModifyDamage(Operation.ModifyDamage damage, ItemStack original) {
-        int old = original.getOrDefault(DataComponents.DAMAGE, 0);
-        int newVal = switch (damage.op()) {
-            case "+", "add" -> old + damage.value();
-            case "=", "set" -> damage.value();
-            case "*", "multiply", "muti" -> old * damage.value();
-            default -> {
-                ThelemaLib.LOGGER.warn("Unknown op '{}' for modify_damage, keeping value", damage.op());
-                yield old;
-            }
-        };
-        ItemStack result = original.copy();
-        result.set(DataComponents.DAMAGE, newVal);
-        return result;
-    }
-
     private ItemStack handleModifyMaxDamage(Operation.ModifyMaxDamage maxDamage, ItemStack original) {
         int old = original.getOrDefault(DataComponents.MAX_DAMAGE, original.getMaxDamage());
-        int newVal = switch (maxDamage.op()) {
-            case "+", "add" -> old + (int) maxDamage.value();
-            case "=", "set" -> (int) maxDamage.value();
-            case "*", "multiply", "muti" -> (int) (old * maxDamage.value());
-            default -> {
-                ThelemaLib.LOGGER.warn("Unknown op '{}' for modify_max_damage, keeping value", maxDamage.op());
-                yield old;
-            }
-        };
-        if (newVal < 1) newVal = 1;
+        int newVal = (int) Math.max(1, applyArithmetic(old, maxDamage.value(), maxDamage.op()));
         ItemStack result = original.copy();
         result.set(DataComponents.MAX_DAMAGE, newVal);
         return result;
@@ -243,15 +246,7 @@ public record RecipeHandle(List<Operation> operations) {
 
     private ItemStack handleModifyCount(Operation.ModifyCount count, ItemStack original) {
         int old = original.getCount();
-        int newVal = switch (count.op()) {
-            case "+", "add" -> old + count.value();
-            case "=", "set" -> count.value();
-            case "*", "multiply", "muti" -> old * count.value();
-            default -> {
-                ThelemaLib.LOGGER.warn("Unknown op '{}' for modify_count, keeping count", count.op());
-                yield old;
-            }
-        };
+        int newVal = (int) applyArithmetic(old, count.value(), count.op());
         int maxStack = original.getItem().getMaxStackSize(original);
         newVal = Math.max(1, Math.min(newVal, maxStack));
         ItemStack result = original.copy();
@@ -285,27 +280,13 @@ public record RecipeHandle(List<Operation> operations) {
                 current.putString(last, value.getString());
             }
             case INT -> {
-                int newVal = switch (op) {
-                    case "+", "add" -> current.getInt(last) + value.getInt();
-                    case "=", "set" -> value.getInt();
-                    case "*", "multiply", "muti" -> current.getInt(last) * value.getInt();
-                    default -> {
-                        ThelemaLib.LOGGER.warn("modify_custom: unknown op '{}' for int, keeping value", op);
-                        yield current.getInt(last);
-                    }
-                };
+                int old = current.getInt(last);
+                int newVal = (int) applyArithmetic(old, value.getInt(), op);
                 current.putInt(last, newVal);
             }
             case DOUBLE -> {
-                double newVal = switch (op) {
-                    case "+", "add" -> current.getDouble(last) + value.getDouble();
-                    case "=", "set" -> value.getDouble();
-                    case "*", "multiply", "muti" -> current.getDouble(last) * value.getDouble();
-                    default -> {
-                        ThelemaLib.LOGGER.warn("modify_custom: unknown op '{}' for double, keeping value", op);
-                        yield current.getDouble(last);
-                    }
-                };
+                double old = current.getDouble(last);
+                double newVal = applyArithmetic(old, value.getDouble(), op);
                 current.putDouble(last, newVal);
             }
             case BOOL -> {
@@ -316,18 +297,17 @@ public record RecipeHandle(List<Operation> operations) {
                 current.putBoolean(last, value.getBoolean());
             }
         }
-
         result.set(DataComponents.CUSTOM_DATA, CustomData.of(tag));
         return result;
     }
 
     private ItemStack handleModifyArmor(Operation.ModifyArmor armor, ItemStack original) {
-        EquipmentSlotGroup slot = parseSlot(armor.slot());
+        EquipmentSlotGroup slot = parseSlot(armor.slot(), original);
         return applyArmorModification(original, Attributes.ARMOR, slot, armor.op(), armor.value());
     }
 
     private ItemStack handleModifyArmorToughness(Operation.ModifyArmorToughness toughness, ItemStack original) {
-        EquipmentSlotGroup slot = parseSlot(toughness.slot());
+        EquipmentSlotGroup slot = parseSlot(toughness.slot(), original);
         return applyArmorModification(original, Attributes.ARMOR_TOUGHNESS, slot, toughness.op(), toughness.value());
     }
 
@@ -336,65 +316,51 @@ public record RecipeHandle(List<Operation> operations) {
         if (!(original.getItem() instanceof ArmorItem armorItem)) return original.copy();
         ItemStack result = original.copy();
 
-        // 自动确定实际槽位
-        EquipmentSlotGroup actualSlot = slot;
-        if (actualSlot == EquipmentSlotGroup.ANY) {
-            EquipmentSlot eqSlot = armorItem.getEquipmentSlot();
-            actualSlot = switch (eqSlot) {
-                case HEAD -> EquipmentSlotGroup.HEAD;
-                case CHEST -> EquipmentSlotGroup.CHEST;
-                case LEGS -> EquipmentSlotGroup.LEGS;
-                case FEET -> EquipmentSlotGroup.FEET;
-                default -> EquipmentSlotGroup.ANY;
-            };
-        }
-
-        double current = getCurrentArmorValue(result, attribute, actualSlot);
-        double newValue = switch (op) {
-            case "+", "add" -> current + value;
-            case "=", "set" -> value;
-            case "*", "multiply", "muti" -> current * value;
-            default -> {
-                ThelemaLib.LOGGER.warn("Unknown armor op '{}', keeping value", op);
-                yield current;
-            }
-        };
-        newValue = Math.max(0, newValue);
-
-        // 获取或初始化修饰符组件
+        // 强制初始化默认修饰符（避免空列表）
         ItemAttributeModifiers currentModifiers = result.get(DataComponents.ATTRIBUTE_MODIFIERS);
         if (currentModifiers == null || currentModifiers.modifiers().isEmpty()) {
             currentModifiers = armorItem.getDefaultAttributeModifiers();
+            result.set(DataComponents.ATTRIBUTE_MODIFIERS, currentModifiers);
         }
 
-        // 尝试查找匹配的修饰符条目并修改其值，使用原版 ID 格式
-        boolean found = false;
-        var builder = ItemAttributeModifiers.builder();
+        // 查找目标条目的当前 amount
+        double oldAmount = 0.0;
         for (ItemAttributeModifiers.Entry entry : currentModifiers.modifiers()) {
-            if (entry.attribute().equals(attribute) && entry.slot().equals(actualSlot)) {
-                // 直接修改该条目：保留原 ID 和 operation，仅更新 amount
-                AttributeModifier updated = new AttributeModifier(entry.modifier().id(), newValue, entry.modifier().operation());
-                builder.add(entry.attribute(), updated, entry.slot());
-                found = true;
+            if (entry.attribute().equals(attribute) && entry.slot().equals(slot)) {
+                oldAmount = entry.modifier().amount();
+                break;
+            }
+        }
+
+        // 应用计算
+        double newAmount = applyArithmetic(oldAmount, value, op);
+        newAmount = Math.max(0, newAmount);
+
+        // 构建新修饰符列表
+        ItemAttributeModifiers.Builder builder = ItemAttributeModifiers.builder();
+        boolean replaced = false;
+        for (ItemAttributeModifiers.Entry entry : currentModifiers.modifiers()) {
+            if (entry.attribute().equals(attribute) && entry.slot().equals(slot)) {
+                AttributeModifier newMod = new AttributeModifier(entry.modifier().id(), newAmount, entry.modifier().operation());
+                builder.add(attribute, newMod, slot);
+                replaced = true;
             } else {
                 builder.add(entry.attribute(), entry.modifier(), entry.slot());
             }
         }
-
-        // 如果未找到匹配条目（例如该属性本就不存在），则添加一个新的，ID 仿照原版风格
-        if (!found) {
+        if (!replaced) {
             ResourceLocation attrId = attribute.getKey().location();
-            ResourceLocation modifierId = ResourceLocation.parse("minecraft:" + attrId.getPath() + "." + actualSlot.getSerializedName());
-            AttributeModifier newMod = new AttributeModifier(modifierId, newValue, AttributeModifier.Operation.ADD_VALUE);
-            builder.add(attribute, newMod, actualSlot);
+            ResourceLocation modifierId = ResourceLocation.parse("minecraft:" + attrId.getPath() + "." + slot.getSerializedName());
+            AttributeModifier newMod = new AttributeModifier(modifierId, newAmount, AttributeModifier.Operation.ADD_VALUE);
+            builder.add(attribute, newMod, slot);
         }
 
         result.set(DataComponents.ATTRIBUTE_MODIFIERS, builder.build());
         return result;
     }
+
     private ItemStack handleSound(Operation.Sound sound, ItemStack result) {
         ItemStack newStack = result.copy();
-        // 将声音数据写入 custom_data.sound
         CustomData data = newStack.getOrDefault(DataComponents.CUSTOM_DATA, CustomData.EMPTY);
         CompoundTag tag = data.copyTag();
         CompoundTag soundTag = new CompoundTag();
@@ -405,6 +371,7 @@ public record RecipeHandle(List<Operation> operations) {
         newStack.set(DataComponents.CUSTOM_DATA, CustomData.of(tag));
         return newStack;
     }
+
     @SuppressWarnings("unchecked")
     private ItemStack handleModifyDataComp(Operation.ModifyDataComp modComp, ItemStack result) {
         if (result.isEmpty()) return result;
@@ -447,42 +414,14 @@ public record RecipeHandle(List<Operation> operations) {
             }
             case INTEGER -> {
                 int current = newStack.getOrDefault((DataComponentType<Integer>) compType, 0);
-                int val;
-                try {
-                    val = Integer.parseInt(modComp.value());
-                } catch (NumberFormatException e) {
-                    ThelemaLib.LOGGER.warn("modify_data_comp: invalid integer '{}'", modComp.value());
-                    return result;
-                }
-                int newVal = switch (modComp.op()) {
-                    case "+", "add" -> current + val;
-                    case "=", "set" -> val;
-                    case "*", "multiply", "muti" -> current * val;
-                    default -> {
-                        ThelemaLib.LOGGER.warn("modify_data_comp: unsupported op '{}' for INTEGER", modComp.op());
-                        yield current;
-                    }
-                };
+                int val = Integer.parseInt(modComp.value());
+                int newVal = (int) applyArithmetic(current, val, modComp.op());
                 newStack.set((DataComponentType<Integer>) compType, newVal);
             }
             case DOUBLE -> {
                 double current = newStack.getOrDefault((DataComponentType<Double>) compType, 0.0);
-                double val;
-                try {
-                    val = Double.parseDouble(modComp.value());
-                } catch (NumberFormatException e) {
-                    ThelemaLib.LOGGER.warn("modify_data_comp: invalid double '{}'", modComp.value());
-                    return result;
-                }
-                double newVal = switch (modComp.op()) {
-                    case "+", "add" -> current + val;
-                    case "=", "set" -> val;
-                    case "*", "multiply", "muti" -> current * val;
-                    default -> {
-                        ThelemaLib.LOGGER.warn("modify_data_comp: unsupported op '{}' for DOUBLE", modComp.op());
-                        yield current;
-                    }
-                };
+                double val = Double.parseDouble(modComp.value());
+                double newVal = applyArithmetic(current, val, modComp.op());
                 newStack.set((DataComponentType<Double>) compType, newVal);
             }
             case STRING -> {
@@ -500,8 +439,21 @@ public record RecipeHandle(List<Operation> operations) {
         return newStack;
     }
 
-    // ---------- 辅助 ----------
-    private EquipmentSlotGroup parseSlot(String slot) {
+    // 字符串转 EquipmentSlotGroup，支持 auto
+    private EquipmentSlotGroup parseSlot(String slot, ItemStack stack) {
+        if ("auto".equals(slot)) {
+            if (stack.getItem() instanceof ArmorItem armorItem) {
+                EquipmentSlot eqSlot = armorItem.getEquipmentSlot();
+                return switch (eqSlot) {
+                    case HEAD -> EquipmentSlotGroup.HEAD;
+                    case CHEST -> EquipmentSlotGroup.CHEST;
+                    case LEGS -> EquipmentSlotGroup.LEGS;
+                    case FEET -> EquipmentSlotGroup.FEET;
+                    default -> EquipmentSlotGroup.ANY;
+                };
+            }
+            return EquipmentSlotGroup.ANY;
+        }
         return switch (slot) {
             case "head" -> EquipmentSlotGroup.HEAD;
             case "chest" -> EquipmentSlotGroup.CHEST;
@@ -509,26 +461,5 @@ public record RecipeHandle(List<Operation> operations) {
             case "feet" -> EquipmentSlotGroup.FEET;
             default -> EquipmentSlotGroup.ANY;
         };
-    }
-
-    private double getCurrentArmorValue(ItemStack stack, Holder<Attribute> attribute, EquipmentSlotGroup slot) {
-        double base = 0;
-        if (stack.getItem() instanceof ArmorItem armorItem) {
-            if (attribute == Attributes.ARMOR) {
-                base = armorItem.getDefense();
-            } else if (attribute == Attributes.ARMOR_TOUGHNESS) {
-                base = armorItem.getToughness();
-            }
-        }
-        ItemAttributeModifiers modifiers = stack.getOrDefault(DataComponents.ATTRIBUTE_MODIFIERS, ItemAttributeModifiers.EMPTY);
-        double modifierSum = 0;
-        for (ItemAttributeModifiers.Entry entry : modifiers.modifiers()) {
-            if (entry.attribute().equals(attribute) && entry.slot().equals(slot)) {
-                if (entry.modifier().operation() == AttributeModifier.Operation.ADD_VALUE) {
-                    modifierSum += entry.modifier().amount();
-                }
-            }
-        }
-        return base + modifierSum;
     }
 }

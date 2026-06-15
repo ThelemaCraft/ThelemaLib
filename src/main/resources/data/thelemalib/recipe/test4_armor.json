@@ -19,8 +19,8 @@
       ],
       "then": [
         { "type": "set_result" },
-        { "type": "modify_armor", "slot": "any", "op": "+", "value": 1 },
-        { "type": "modify_armor_toughness", "slot": "any", "op": "+", "value": 1 },
+        { "type": "modify_armor", "slot": "auto", "op": "+", "value": 1 },
+        { "type": "modify_armor_toughness", "slot": "auto", "op": "+", "value": 1 },
         { "type": "modify_custom", "key": "thrive_moss_cullus_ball", "op": "=", "value": "true" }
       ],
       "else_then": [

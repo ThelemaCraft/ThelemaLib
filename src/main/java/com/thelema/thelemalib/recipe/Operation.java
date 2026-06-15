@@ -347,7 +347,7 @@ public interface Operation {
     record ModifyArmor(String slot, String op, double value) implements Operation {
         public static final MapCodec<ModifyArmor> MAP_CODEC = RecordCodecBuilder.mapCodec(inst -> inst.group(
                 Codec.STRING.fieldOf("slot").forGetter(ModifyArmor::slot),
-                Codec.STRING.fieldOf("op").forGetter(ModifyArmor::op),
+                Codec.STRING.optionalFieldOf("op", "auto").forGetter(ModifyArmor::op),
                 Codec.DOUBLE.fieldOf("value").forGetter(ModifyArmor::value)
         ).apply(inst, ModifyArmor::new));
         @Override public String type() { return "modify_armor"; }
@@ -356,7 +356,7 @@ public interface Operation {
     record ModifyArmorToughness(String slot, String op, double value) implements Operation {
         public static final MapCodec<ModifyArmorToughness> MAP_CODEC = RecordCodecBuilder.mapCodec(inst -> inst.group(
                 Codec.STRING.fieldOf("slot").forGetter(ModifyArmorToughness::slot),
-                Codec.STRING.fieldOf("op").forGetter(ModifyArmorToughness::op),
+                Codec.STRING.optionalFieldOf("op", "auto").forGetter(ModifyArmorToughness::op),
                 Codec.DOUBLE.fieldOf("value").forGetter(ModifyArmorToughness::value)
         ).apply(inst, ModifyArmorToughness::new));
         @Override public String type() { return "modify_armor_toughness"; }
@@ -365,7 +365,7 @@ public interface Operation {
     record ModifyDataComp(String key, String field, String op, String value) implements Operation {
         public static final MapCodec<ModifyDataComp> MAP_CODEC = RecordCodecBuilder.mapCodec(inst -> inst.group(
                 Codec.STRING.fieldOf("key").forGetter(ModifyDataComp::key),
-                Codec.STRING.optionalFieldOf("field", "value").forGetter(ModifyDataComp::field),
+                Codec.STRING.optionalFieldOf("field", "unknow").forGetter(ModifyDataComp::field),
                 Codec.STRING.fieldOf("op").forGetter(ModifyDataComp::op),
                 Codec.STRING.fieldOf("value").forGetter(ModifyDataComp::value)
         ).apply(inst, ModifyDataComp::new));
