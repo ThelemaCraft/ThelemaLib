@@ -26,7 +26,7 @@ public class TShapelessSerializer implements RecipeSerializer<TShapelessRecipe> 
                     },
                     List::copyOf
             ).fieldOf("ingredients").forGetter(TShapelessRecipe::ingredients),
-            ItemStack.CODEC.optionalFieldOf("template").forGetter(r -> Optional.of(r.template())),
+            ItemStack.CODEC.optionalFieldOf("result").forGetter(r -> Optional.of(r.template())),
             RecipeHandle.CODEC.optionalFieldOf("handle", RecipeHandle.EMPTY).forGetter(TShapelessRecipe::handle)
     ).apply(inst, (ingredients, templateOpt, handle) ->
             new TShapelessRecipe(ingredients, templateOpt.orElse(new ItemStack(Items.STRUCTURE_VOID)), handle)));

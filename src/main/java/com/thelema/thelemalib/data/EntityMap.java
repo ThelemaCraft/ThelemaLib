@@ -18,7 +18,6 @@ public class EntityMap {
     @SuppressWarnings("rawtypes")
     public Map map;
 
-    @SuppressWarnings("resource")
     public static EntityMap get(Entity entity, String key){
         EntityMap em = new EntityMap();
         CompoundTag data = entity.getPersistentData();
@@ -39,6 +38,7 @@ public class EntityMap {
         return get(entity, DEFAULT);
     }
 
+    @SuppressWarnings("unchecked")
     public void save(){
         // Map 变回 NBT
         CompoundTag nbt = MapHelper.toNBT(map, provider);

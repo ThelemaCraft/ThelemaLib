@@ -17,7 +17,7 @@ import java.util.Optional;
 public class TShapedSerializer implements RecipeSerializer<TShapedRecipe> {
     public static final MapCodec<TShapedRecipe> CODEC = RecordCodecBuilder.mapCodec(inst -> inst.group(
             ShapedRecipePattern.MAP_CODEC.forGetter(TShapedRecipe::pattern),
-            ItemStack.CODEC.optionalFieldOf("template").forGetter(r -> Optional.of(r.template())),
+            ItemStack.CODEC.optionalFieldOf("result").forGetter(r -> Optional.of(r.template())),
             RecipeHandle.CODEC.optionalFieldOf("handle", RecipeHandle.EMPTY).forGetter(TShapedRecipe::handle)
     ).apply(inst, (pattern, templateOpt, handle) ->
             new TShapedRecipe(pattern, templateOpt.orElse(new ItemStack(Items.STRUCTURE_VOID)), handle)));

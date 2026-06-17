@@ -11,7 +11,6 @@ import net.minecraft.world.level.Level;
 import net.neoforged.neoforge.common.util.RecipeMatcher;
 
 import java.util.ArrayList;
-import java.util.Iterator;
 import java.util.List;
 
 public record TShapelessRecipe(

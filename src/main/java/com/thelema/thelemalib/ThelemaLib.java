@@ -23,7 +23,7 @@ public class ThelemaLib {
 
 
     public ThelemaLib(IEventBus bus, ModContainer cont) {
-        
+
         bus.addListener(this::commonSetup);
 
         TRecipeSerializers.SERIALIZERS.register(bus);
