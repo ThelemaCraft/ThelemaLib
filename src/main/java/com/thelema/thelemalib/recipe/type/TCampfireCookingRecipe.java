@@ -20,4 +20,5 @@ public class TCampfireCookingRecipe extends TAbstractCookingRecipe {
     public @NotNull RecipeSerializer<?> getSerializer() {
         return TRecipeSerializers.T_CAMPFIRE_COOKING_SERIALIZER.get();
     }
+
 }

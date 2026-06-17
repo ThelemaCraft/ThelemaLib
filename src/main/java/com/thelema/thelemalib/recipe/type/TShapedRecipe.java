@@ -59,4 +59,5 @@ public record TShapedRecipe(
     public NonNullList<Ingredient> getIngredients() {
         return pattern.ingredients();
     }
+
 }

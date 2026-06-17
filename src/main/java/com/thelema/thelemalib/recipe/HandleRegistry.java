@@ -32,6 +32,7 @@ public class HandleRegistry {
         MANUAL_MAPPINGS.put(holder.get(), fieldTypes);
     }
 
+
     // 简单类型检测（支持 Boolean, Integer, Double, String 的单字段组件）
     public static Map<String, FieldType> analyzeComponent(DataComponentType<?> type) {
         Codec<?> codec = type.codec();

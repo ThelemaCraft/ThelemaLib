@@ -73,4 +73,5 @@ public record TShapelessRecipe(
     public NonNullList<Ingredient> getIngredients() {
         return ingredients;
     }
+
 }

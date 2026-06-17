@@ -13,6 +13,7 @@ public class TRecipeSerializers {
     public static final DeferredRegister<RecipeSerializer<?>> SERIALIZERS =
             DeferredRegister.create(Registries.RECIPE_SERIALIZER, ThelemaLib.MOD_ID);
 
+
     public static final DeferredHolder<RecipeSerializer<?>, RecipeSerializer<TShapelessRecipe>> T_SHAPELESS_SERIALIZER =
             SERIALIZERS.register("t_shapeless", TShapelessSerializer::new);
     public static final DeferredHolder<RecipeSerializer<?>, RecipeSerializer<TShapedRecipe>> T_SHAPED_SERIALIZER =

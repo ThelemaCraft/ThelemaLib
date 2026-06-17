@@ -480,4 +480,5 @@ public record RecipeHandle(List<Operation> operations) {
             default -> EquipmentSlotGroup.ANY;
         };
     }
+
 }

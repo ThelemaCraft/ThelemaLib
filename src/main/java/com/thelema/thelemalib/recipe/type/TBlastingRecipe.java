@@ -20,4 +20,5 @@ public class TBlastingRecipe extends TAbstractCookingRecipe {
     public @NotNull RecipeSerializer<?> getSerializer() {
         return TRecipeSerializers.T_BLASTING_SERIALIZER.get();
     }
+
 }

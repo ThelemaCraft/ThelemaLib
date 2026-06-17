@@ -30,6 +30,7 @@ public class RecipeEventHandler {
         HANDLERS.put(tagKey, handler);
     }
 
+
     public static void init(){
         register("sound", event -> {
             ItemStack stack = event.getCrafting();

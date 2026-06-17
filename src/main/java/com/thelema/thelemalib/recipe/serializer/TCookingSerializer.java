@@ -75,4 +75,5 @@ public class TCookingSerializer<T extends TAbstractCookingRecipe> implements Rec
 
     @Override
     public @NotNull StreamCodec<RegistryFriendlyByteBuf, T> streamCodec() { return streamCodec; }
+
 }

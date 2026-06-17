@@ -18,4 +18,5 @@ public class TSmeltingRecipe extends TAbstractCookingRecipe {
     public @NotNull RecipeSerializer<?> getSerializer() {
         return TRecipeSerializers.T_SMELTING_SERIALIZER.get();
     }
+
 }

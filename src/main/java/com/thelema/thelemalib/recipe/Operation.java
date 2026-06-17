@@ -57,6 +57,7 @@ public interface Operation {
         boolean test(ItemStack stack);
     }
 
+
     // ========== 值类型定义 ==========
     public static final class TypedValue {
         public enum Type { STRING, INT, DOUBLE, BOOL }

@@ -20,4 +20,5 @@ public class TSmokingRecipe extends TAbstractCookingRecipe {
     public @NotNull RecipeSerializer<?> getSerializer() {
         return TRecipeSerializers.T_SMOKING_SERIALIZER.get();
     }
+
 }

@@ -1,5 +1,6 @@
 package com.thelema.thelemalib.recipe.serializer;
 
+
 import com.mojang.serialization.MapCodec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
 import com.thelema.thelemalib.recipe.RecipeHandle;
