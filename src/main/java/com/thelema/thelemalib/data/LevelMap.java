@@ -29,7 +29,7 @@ public class LevelMap extends SavedData {
         return level.getDataStorage().computeIfAbsent(
                 new Factory<>(LevelMap::new, (nbt, provider) -> {
                     LevelMap levelMap = new LevelMap();
-                    levelMap.map = MapHelper.fromNbt(nbt, provider);
+                    levelMap.map = MapConverter.fromNbt(nbt, provider);
                     return levelMap;
                 }),
                 file
@@ -49,7 +49,7 @@ public class LevelMap extends SavedData {
     @SuppressWarnings("unchecked")
     @Override
     public @NotNull CompoundTag save(@NotNull CompoundTag tag, HolderLookup.@NotNull Provider provider) {
-        return MapHelper.toNBT(map, provider);
+        return MapConverter.toNBT(map, provider);
     }
 
 }

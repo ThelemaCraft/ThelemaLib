@@ -2,32 +2,22 @@ package com.thelema.thelemalib.data;
 
 import com.mojang.serialization.Codec;
 import net.minecraft.core.BlockPos;
-import net.minecraft.nbt.CompoundTag;
-import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.phys.Vec3;
-import net.neoforged.neoforge.items.IItemHandler;
-import net.neoforged.neoforge.items.ItemStackHandler;
 
-import java.util.*;
+import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * 全局 Codec 注册中心。
+ * 键 Codec 注册中心 —— 仅接受能编码为 StringTag 的 Codec。
  * <p>
- * 注册时 typeId 不含任何特殊符号，内部使用。
- * 基础类型（数字、数组、String、容器等）不在此注册，由 MapHelper 内聚处理。
+ * 所有注册的 Codec 必须通过 {@code codec.encodeStart(NbtOps, value)} 产出 {@link net.minecraft.nbt.StringTag}，
+ * 否则在键编码时会抛出异常。
  */
-public final class CodecRegister {
+public final class KeyCodecRegistry {
     private static final Map<Class<?>, Entry<?>> BY_CLASS = new ConcurrentHashMap<>();
     private static final Map<String, Entry<?>> BY_ID = new ConcurrentHashMap<>();
 
-    /**
-     * 注册一个自定义类型。
-     *
-     * @param clazz  类型 Class
-     * @param typeId 唯一标识（不含特殊符号）
-     * @param codec  对应的 Codec
-     */
     public static <T> void register(Class<T> clazz, String typeId, Codec<T> codec) {
         Entry<T> entry = new Entry<>(typeId, codec);
         BY_CLASS.put(clazz, entry);
@@ -51,8 +41,8 @@ public final class CodecRegister {
 
     public static void init(){}
 
-    // ---------- 预注册常用类型 ----------
     static {
+
         // 布尔
         register(Boolean.class, "bool",
                 Codec.STRING.xmap("true"::equalsIgnoreCase, b -> b ? "true" : "false"));
@@ -61,7 +51,7 @@ public final class CodecRegister {
         register(UUID.class, "uuid",
                 Codec.STRING.xmap(UUID::fromString, UUID::toString));
 
-        // BlockPos – 字符串 Codec（“x,y,z”）
+        // BlockPos（字符串 Codec）
         register(BlockPos.class, "Bpos",
                 Codec.STRING.xmap(
                         s -> {
@@ -71,7 +61,7 @@ public final class CodecRegister {
                         p -> p.getX() + "," + p.getY() + "," + p.getZ()
                 ));
 
-        // Vec3 – 字符串 Codec（“x,y,z”）
+        // Vec3（字符串 Codec）
         register(Vec3.class, "vec3",
                 Codec.STRING.xmap(
                         s -> {
@@ -80,26 +70,5 @@ public final class CodecRegister {
                         },
                         v -> v.x + "," + v.y + "," + v.z
                 ));
-
-        // ItemStack
-        register(ItemStack.class, "itemstack", ItemStack.CODEC);
-
-        // IItemHandler
-        register(IItemHandler.class, "iitemhandler",
-                Codec.list(ItemStack.CODEC).xmap(
-                        stacks -> {
-                            ItemStackHandler h = new ItemStackHandler(stacks.size());
-                            for (int i = 0; i < stacks.size(); i++) h.setStackInSlot(i, stacks.get(i));
-                            return h;
-                        },
-                        h -> {
-                            List<ItemStack> l = new ArrayList<>();
-                            for (int i = 0; i < h.getSlots(); i++) l.add(h.getStackInSlot(i));
-                            return l;
-                        }
-                ));
-
-        // CompoundTag 本身
-        register(CompoundTag.class, "nbt", CompoundTag.CODEC);
     }
 }
