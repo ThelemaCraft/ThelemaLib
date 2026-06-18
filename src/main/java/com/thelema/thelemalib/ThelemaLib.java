@@ -1,9 +1,11 @@
 package com.thelema.thelemalib;
 
 import com.thelema.thelemalib.config.TConfig;
-import com.thelema.thelemalib.recipe.RecipeEventHandler;
 import com.thelema.thelemalib.recipe.TRecipeSerializers;
 import com.thelema.thelemalib.recipe.TRecipeTypes;
+import com.thelema.thelemalib.recipe.registry.ConditionRegistry;
+import com.thelema.thelemalib.recipe.registry.HandleRegistry;
+import com.thelema.thelemalib.recipe.registry.RecipeEventRegistry;
 import org.slf4j.Logger;
 
 import com.mojang.logging.LogUtils;
@@ -29,7 +31,9 @@ public class ThelemaLib {
         TRecipeSerializers.SERIALIZERS.register(bus);
         TRecipeTypes.TYPES.register(bus);
 
-        RecipeEventHandler.init();
+        ConditionRegistry.init();
+        HandleRegistry.init();
+        RecipeEventRegistry.init();
 
 
         cont.registerConfig(ModConfig.Type.COMMON, TConfig.SPEC);

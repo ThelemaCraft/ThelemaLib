@@ -1,6 +1,6 @@
 package com.thelema.thelemalib.recipe.type;
 
-import com.thelema.thelemalib.recipe.RecipeHandle;
+import com.google.gson.JsonArray;
 import com.thelema.thelemalib.recipe.TRecipeSerializers;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.crafting.CookingBookCategory;
@@ -12,7 +12,7 @@ import org.jetbrains.annotations.NotNull;
 public class TSmokingRecipe extends TAbstractCookingRecipe {
     public TSmokingRecipe(String group, CookingBookCategory category,
                           Ingredient ingredient, ItemStack template, float experience, int cookingTime,
-                          RecipeHandle handle) {
+                          JsonArray handle) {
         super(RecipeType.SMOKING, group, category, ingredient, template, experience, cookingTime, handle);
     }
 
@@ -20,5 +20,4 @@ public class TSmokingRecipe extends TAbstractCookingRecipe {
     public @NotNull RecipeSerializer<?> getSerializer() {
         return TRecipeSerializers.T_SMOKING_SERIALIZER.get();
     }
-
 }

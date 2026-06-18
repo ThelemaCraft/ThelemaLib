@@ -1,0 +1,19 @@
+{
+  "type": "thelemalib:t_shapeless",
+  "ingredients": [
+    { "item": "minecraft:iron_sword" },
+    { "item": "minecraft:writable_book" }
+  ],
+  "result": { "id": "minecraft:iron_sword" },
+  "handle": [
+    {
+      "match": [{ "type": "item_id", "item": "minecraft:writable_book" }],
+      "found": [
+        { "type": "rename", "text": "§6智慧之刃" }
+      ],
+      "no_found": [
+        { "type": "rename", "text": "§7普通之刃" }
+      ]
+    }
+  ]
+}

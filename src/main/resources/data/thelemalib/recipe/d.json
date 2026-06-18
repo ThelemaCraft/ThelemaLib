@@ -1,0 +1,25 @@
+{
+  "type": "thelemalib:t_shapeless",
+  "ingredients": [
+    { "item": "minecraft:bow" },
+    { "item": "minecraft:spectral_arrow" }
+  ],
+  "result": { "id": "minecraft:bow" },
+  "handle": [
+    {
+      "match": [{ "type": "item_id", "item": "minecraft:spectral_arrow" }],
+      "match_range": "inputs",
+      "found": [
+        {
+          "type": "set_current",
+          "match_range": "outputs",
+          "from": [{ "type": "item_id", "item": "minecraft:bow" }]
+        },
+        {
+          "type": "rename",
+          "text": "§b追踪之弓"
+        }
+      ]
+    }
+  ]
+}

@@ -1,8 +1,10 @@
 package com.thelema.thelemalib.recipe.type;
 
-import com.thelema.thelemalib.recipe.RecipeHandle;
+import com.google.gson.JsonArray;
+import com.thelema.thelemalib.ThelemaLib;
 import com.thelema.thelemalib.recipe.TRecipeSerializers;
-import it.unimi.dsi.fastutil.ints.IntList;
+import com.thelema.thelemalib.recipe.tool.Context;
+import com.thelema.thelemalib.recipe.tool.OutputHandler;
 import net.minecraft.core.HolderLookup;
 import net.minecraft.core.NonNullList;
 import net.minecraft.world.item.ItemStack;
@@ -16,12 +18,12 @@ import java.util.List;
 public record TShapelessRecipe(
         NonNullList<Ingredient> ingredients,
         ItemStack template,
-        RecipeHandle handle) implements CraftingRecipe {
+        JsonArray handle) implements CraftingRecipe {
 
-    public TShapelessRecipe(NonNullList<Ingredient> ingredients, ItemStack template, RecipeHandle handle) {
+    public TShapelessRecipe(NonNullList<Ingredient> ingredients, ItemStack template, JsonArray handle) {
         this.ingredients = ingredients;
-        this.template = template.copy();
-        this.handle = handle == null ? RecipeHandle.EMPTY : handle;
+        this.template = template;
+        this.handle = handle;
     }
 
     @Override
@@ -29,19 +31,33 @@ public record TShapelessRecipe(
         if (input.ingredientCount() != ingredients.size()) {
             return false;
         }
-        List<ItemStack> nonEmptyItems = new ArrayList<>(input.ingredientCount());
+
+        // 简单匹配：单个原料
+        if (input.size() == 1 && ingredients.size() == 1) {
+            return ingredients.get(0).test(input.getItem(0));
+        }
+
+        // 复杂匹配：使用 RecipeMatcher
+        List<ItemStack> nonEmptyItems = new ArrayList<>();
         for (ItemStack item : input.items()) {
             if (!item.isEmpty()) {
                 nonEmptyItems.add(item);
             }
         }
+
         return RecipeMatcher.findMatches(nonEmptyItems, ingredients) != null;
     }
 
     @Override
     public ItemStack assemble(CraftingInput input, HolderLookup.Provider registries) {
-        ItemStack output = template.copy();
-        return handle.apply(output, input);
+        ItemStack result = template.copy();
+        List<ItemStack> inputs = input.items().stream().filter(s -> !s.isEmpty()).toList();
+
+        Context ctx = new Context(inputs, new ArrayList<>(List.of(result)));
+
+
+        OutputHandler.handle(ctx, handle);
+        return ctx.output.get(0);
     }
 
     @Override
@@ -60,18 +76,13 @@ public record TShapelessRecipe(
     }
 
     @Override
-    public RecipeType<?> getType() {
-        return RecipeType.CRAFTING;
-    }
+    public RecipeType<?> getType() { return RecipeType.CRAFTING; }
 
     @Override
-    public CraftingBookCategory category() {
-        return CraftingBookCategory.MISC;
-    }
+    public CraftingBookCategory category() { return CraftingBookCategory.MISC; }
 
     @Override
     public NonNullList<Ingredient> getIngredients() {
         return ingredients;
     }
-
 }
