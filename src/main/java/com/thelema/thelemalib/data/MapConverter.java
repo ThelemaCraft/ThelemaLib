@@ -15,6 +15,7 @@ import java.util.*;
 public final class MapConverter {
 
     // ---------- 公共 API ----------
+    @Deprecated
     public static CompoundTag toNBT(Map<Object, Object> map, HolderLookup.Provider provider) {
         CompoundTag out = new CompoundTag();
         for (Map.Entry<Object, Object> e : map.entrySet()) {
@@ -32,6 +33,7 @@ public final class MapConverter {
         return out;
     }
 
+    @Deprecated
     public static Map<Object, Object> fromNbt(CompoundTag tag, HolderLookup.Provider provider) {
         Map<Object, Object> map = new HashMap<>();
         for (String rawKey : tag.getAllKeys()) {
@@ -44,19 +46,19 @@ public final class MapConverter {
     }
 
     // ---------- 键名解析 ----------
-    private static String getValueTypeId(String rawKey) {
+    static String getValueTypeId(String rawKey) {
         int idx = rawKey.lastIndexOf("->");
         return idx >= 0 ? rawKey.substring(idx + 2) : "";
     }
 
     // 从值类型 ID 中提取 List/Set 的元素类型（如 "list<Bpos>" -> "Bpos"）
-    private static String extractElementType(String fullType) {
+    static String extractElementType(String fullType) {
         int s = fullType.indexOf('<'), e = fullType.indexOf('>');
         return (s != -1 && e > s) ? fullType.substring(s + 1, e) : "";
     }
 
     // 编码 key
-    private static String encodeKey(Object key, Object value) {
+    static String encodeKey(Object key, Object value) {
         // Map 的 key是 String，直接就是 String，再分析 value类型
         if (key instanceof String s && !s.isEmpty()) {
             // String 合理，是至少一个字段的 字符串
@@ -106,7 +108,7 @@ public final class MapConverter {
     }
 
     // 解码key，string(type==data) 到实际对象
-    private static Object decodeKey(String raw) {
+    static Object decodeKey(String raw) {
         String base = raw.contains("->") ? raw.substring(0, raw.lastIndexOf("->")) : raw; // 剥除值类型后缀
         int idx = base.indexOf("==");
         if (idx == -1) return base; // 无==为纯字符串
@@ -146,7 +148,7 @@ public final class MapConverter {
     }
 
     // 获取集合的类型
-    private static String inferElementType(Collection<?> col) {
+    static String inferElementType(Collection<?> col) {
         // 遍历，但是检测第一个就返回
         for (Object o : col) {
             if (o == null) continue;
@@ -169,7 +171,7 @@ public final class MapConverter {
     }
 
     // Value 序列化为 Tag
-    private static Tag encodeValue(Object value, HolderLookup.Provider provider) {
+    static Tag encodeValue(Object value, HolderLookup.Provider provider) {
         if (value == null) return new CompoundTag(); // 空占位
         // 基础类型，直接转为对应的 Tag
         if (value instanceof Byte b) return ByteTag.valueOf(b);
@@ -199,7 +201,7 @@ public final class MapConverter {
     }
 
     // ---------- 值解码 ----------
-    private static Object decodeValue(Tag tag, String type, HolderLookup.Provider provider) {
+    static Object decodeValue(Tag tag, String type, HolderLookup.Provider provider) {
         // type 为空 → 基础类型，直接映射
         if (type.isEmpty()) {
             if (tag instanceof ByteTag bt) return bt.getAsByte();

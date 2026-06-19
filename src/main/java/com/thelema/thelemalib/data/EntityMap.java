@@ -8,6 +8,7 @@ import net.minecraft.world.entity.Entity;
 import java.util.HashMap;
 import java.util.Map;
 
+@Deprecated
 public class EntityMap {
 
     public static final String DEFAULT = "default_entity_map";

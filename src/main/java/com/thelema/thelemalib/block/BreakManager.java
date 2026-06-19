@@ -1,6 +1,7 @@
 package com.thelema.thelemalib.block;
 
 import com.thelema.thelemalib.data.LevelMap;
+import com.thelema.thelemalib.data.MapTag;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.protocol.game.ClientboundBlockDestructionPacket;
 import net.minecraft.server.level.ServerLevel;
@@ -10,22 +11,20 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.state.BlockState;
 
-import java.util.Map;
-
 public class BreakManager {
 
     public static final int MAX = 99;
 
     public ServerLevel level;
     public LevelMap map;
-    public Map<BlockPos, Integer> progress;
+    public MapTag<BlockPos, Integer> progress;
 
     public static BreakManager get(ServerLevel level) {
         BreakManager m = new BreakManager();
         m.level = level;
         LevelMap global = LevelMap.common(level, "loticlast_break_manager_data");
         m.map = global;
-        m.progress = global.map;
+        m.progress = global.map();
         return m;
     }
 

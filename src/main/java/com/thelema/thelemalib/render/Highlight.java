@@ -14,7 +14,7 @@ import java.util.Map;
 public class Highlight {
 
     static Map<String, List<Entity>> map(ServerLevel level){
-        return (Map<String, List<Entity>>) LevelMap.temp(level).map;
+        return (Map<String, List<Entity>>) LevelMap.temp(level).map();
     }
 
     // 分组
