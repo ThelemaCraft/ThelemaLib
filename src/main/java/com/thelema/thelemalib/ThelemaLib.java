@@ -2,6 +2,7 @@ package com.thelema.thelemalib;
 
 import com.thelema.thelemalib.config.TConfig;
 import com.thelema.thelemalib.data.tool.SyncLevelMapPacket;
+import com.thelema.thelemalib.generic.ItemRegister;
 import com.thelema.thelemalib.recipe.TRecipeSerializers;
 import com.thelema.thelemalib.recipe.TRecipeTypes;
 import com.thelema.thelemalib.recipe.registry.ConditionRegistry;
@@ -28,8 +29,7 @@ public class ThelemaLib {
 
     public ThelemaLib(IEventBus bus, ModContainer cont) {
 
-        bus.addListener(this::commonSetup);
-
+        ItemRegister.register(bus);
         TRecipeSerializers.SERIALIZERS.register(bus);
         TRecipeTypes.TYPES.register(bus);
 
@@ -37,6 +37,7 @@ public class ThelemaLib {
         HandleRegistry.init();
         RecipeEventRegistry.init();
 
+        bus.addListener(this::commonSetup);
         cont.registerConfig(ModConfig.Type.COMMON, TConfig.SPEC);
     }
 

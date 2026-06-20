@@ -6,6 +6,7 @@ import com.mojang.datafixers.util.Either;
 import com.mojang.serialization.Codec;
 import com.mojang.serialization.MapCodec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
+import com.thelema.thelemalib.generic.ItemRegister;
 import com.thelema.thelemalib.recipe.tool.JsonCodec;
 import com.thelema.thelemalib.recipe.type.TShapedRecipe;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -22,28 +23,18 @@ import java.util.Optional;
 
 public class TShapedSerializer implements RecipeSerializer<TShapedRecipe> {
 
-    // 兼容 "result": "minecraft:iron_sword" 或 "result": {"id":"...","count":1}
-    public static final Codec<ItemStack> RESULT_CODEC = Codec.either(
-            Codec.STRING,
-            ItemStack.CODEC
-    ).xmap(
-            either -> either.map(
-                    id -> new ItemStack(BuiltInRegistries.ITEM.get(ResourceLocation.parse(id))),
-                    stack -> stack
-            ),
-            Either::right
-    );
-
     public static final MapCodec<TShapedRecipe> CODEC = RecordCodecBuilder.mapCodec(inst -> inst.group(
             ShapedRecipePattern.MAP_CODEC.forGetter(TShapedRecipe::pattern),
-            RESULT_CODEC.optionalFieldOf("result").forGetter(r -> {
+            TShapelessSerializer. RESULT_CODEC.optionalFieldOf("result").forGetter(r -> {
                 ItemStack template = r.template();
-                return template.isEmpty() || template.getItem() == Items.STRUCTURE_VOID ?
-                        Optional.empty() : Optional.of(template);
+                // 仅当模板为 NO_TEMPLATE 时才省略字段
+                return template.getItem() == ItemRegister.NO_TEMPLATE.get()
+                        ? Optional.empty()
+                        : Optional.of(template);
             }),
             JsonCodec.JSON_ARRAY_CODEC.optionalFieldOf("handle", new JsonArray()).forGetter(TShapedRecipe::handle)
     ).apply(inst, (pattern, templateOpt, handle) -> {
-        ItemStack template = templateOpt.orElse(new ItemStack(Items.STRUCTURE_VOID));
+        ItemStack template = templateOpt.orElse(new ItemStack(ItemRegister.NO_TEMPLATE));
         return new TShapedRecipe(pattern, template, handle);
     }));
 

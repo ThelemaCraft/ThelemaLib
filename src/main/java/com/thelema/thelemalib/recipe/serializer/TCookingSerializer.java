@@ -28,18 +28,6 @@ public class TCookingSerializer<T extends TAbstractCookingRecipe> implements Rec
 
     public record Args(String group, CookingBookCategory category, Ingredient ingredient,
                        Optional<ItemStack> template, float experience, int cookingTime, JsonArray handle) {}
-
-    public static final Codec<ItemStack> RESULT_CODEC = Codec.either(
-            Codec.STRING,
-            ItemStack.CODEC
-    ).xmap(
-            either -> either.map(
-                    id -> new ItemStack(BuiltInRegistries.ITEM.get(ResourceLocation.parse(id))),
-                    stack -> stack
-            ),
-            Either::right
-    );
-
     public TCookingSerializer(Function<Args, T> factory) {
         this.factory = factory;
 
@@ -47,7 +35,7 @@ public class TCookingSerializer<T extends TAbstractCookingRecipe> implements Rec
                 Codec.STRING.optionalFieldOf("group", "").forGetter(Args::group),
                 CookingBookCategory.CODEC.optionalFieldOf("category", CookingBookCategory.MISC).forGetter(Args::category),
                 Ingredient.CODEC.fieldOf("ingredient").forGetter(Args::ingredient),
-                RESULT_CODEC.optionalFieldOf("result").forGetter(Args::template),
+                TShapelessSerializer.RESULT_CODEC.optionalFieldOf("result").forGetter(Args::template),
                 Codec.FLOAT.optionalFieldOf("experience", 0.0F).forGetter(Args::experience),
                 Codec.INT.optionalFieldOf("cookingtime", 200).forGetter(Args::cookingTime),
                 JsonCodec.JSON_ARRAY_CODEC.optionalFieldOf("handle", new JsonArray()).forGetter(Args::handle)

@@ -1,6 +1,6 @@
 {
   "parent": "minecraft:item/generated",
   "textures": {
-    "layer0": "thelemalib:item/any_item"
+    "layer0": "thelemalib:item/no_template"
   }
 }

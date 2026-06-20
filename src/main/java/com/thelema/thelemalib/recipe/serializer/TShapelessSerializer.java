@@ -7,6 +7,7 @@ import com.mojang.datafixers.util.Either;
 import com.mojang.serialization.Codec;
 import com.mojang.serialization.MapCodec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
+import com.thelema.thelemalib.generic.ItemRegister;
 import com.thelema.thelemalib.recipe.tool.JsonCodec;
 import com.thelema.thelemalib.recipe.type.TShapelessRecipe;
 import net.minecraft.core.NonNullList;
@@ -33,7 +34,7 @@ public class TShapelessSerializer implements RecipeSerializer<TShapelessRecipe> 
                     id -> new ItemStack(BuiltInRegistries.ITEM.get(ResourceLocation.parse(id))),
                     stack -> stack
             ),
-            stack -> Either.right(stack)
+            Either::right
     );
 
     public static final MapCodec<TShapelessRecipe> CODEC = RecordCodecBuilder.mapCodec(inst -> inst.group(
@@ -47,12 +48,14 @@ public class TShapelessSerializer implements RecipeSerializer<TShapelessRecipe> 
             ).fieldOf("ingredients").forGetter(TShapelessRecipe::ingredients),
             RESULT_CODEC.optionalFieldOf("result").forGetter(r -> {
                 ItemStack template = r.template();
-                return template.isEmpty() || template.getItem() == Items.STRUCTURE_VOID ?
-                        Optional.empty() : Optional.of(template);
+                // 仅当模板为 NO_TEMPLATE 时才省略字段
+                return template.getItem() == ItemRegister.NO_TEMPLATE.get()
+                        ? Optional.empty()
+                        : Optional.of(template);
             }),
             JsonCodec.JSON_ARRAY_CODEC.optionalFieldOf("handle", new JsonArray()).forGetter(TShapelessRecipe::handle)
     ).apply(inst, (ingredients, templateOpt, handle) -> {
-        ItemStack template = templateOpt.orElse(new ItemStack(Items.STRUCTURE_VOID));
+        ItemStack template = templateOpt.orElse(new ItemStack(ItemRegister.NO_TEMPLATE));
         return new TShapelessRecipe(ingredients, template, handle);
     }));
 

@@ -40,14 +40,27 @@ public class HandleRegistry {
             ctx.current = meta.input();
         });
 
-        register("copy_to_current", (ctx, json, meta) -> {
+        register("copy_to_set_current", (ctx, json, meta) -> {
             // 将输入物品的副本设为 current，原物品不受影响
             ctx.current = meta.input().copy();
         });
 
-        register("copy_to_result", (ctx, json, meta) -> {
-            // 将输入副本放入 output[0]
-            ctx.output.set(0, meta.input().copy());
+        register("set_result", (ctx, json, meta) -> ctx.output.set(0, meta.input()));
+
+        register("copy_to_set_result", (ctx, json, meta) -> ctx.output.set(0, meta.input().copy()));
+
+        register("add_result", (ctx, json, meta) -> {
+            // 将输入副本插入输出列表
+            ItemStack copy = meta.input();
+            String posStr = json.has("pos") ? json.get("pos").getAsString() : "head";
+            int pos = switch (posStr) {
+                case "head" -> 0;
+                case "tail" -> ctx.output.size();
+                default -> Integer.parseInt(posStr);
+            };
+            if (pos < 0) pos = 0;
+            if (pos > ctx.output.size()) pos = ctx.output.size();
+            ctx.output.add(pos, copy);
         });
 
         register("copy_to_add_result", (ctx, json, meta) -> {
@@ -63,8 +76,6 @@ public class HandleRegistry {
             if (pos > ctx.output.size()) pos = ctx.output.size();
             ctx.output.add(pos, copy);
         });
-
-        register("set_result", (ctx, json, meta) -> ctx.output.set(0, meta.input().copy()));
 
         // ========== 分支控制 ==========
 
