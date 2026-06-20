@@ -215,6 +215,38 @@ public class HandleRegistry {
             tag.put("sound", soundTag);
             stack.set(DataComponents.CUSTOM_DATA, CustomData.of(tag));
         });
+
+        // ========== 方块实体数据(放置和破坏不丢失) ==========
+        register("modify_block_entity_data", (ctx, json, meta) -> {
+            ItemStack stack = meta.input();
+            if (stack.isEmpty()) return;
+            String key = json.get("key").getAsString();
+            String op = json.get("op").getAsString();
+            JsonElement valueElem = json.get("value");
+
+            // 获取或创建 BLOCK_ENTITY_DATA
+            CustomData data = stack.getOrDefault(DataComponents.BLOCK_ENTITY_DATA, CustomData.EMPTY);
+            CompoundTag tag = data.copyTag();
+            modifyNbt(tag, key, op, valueElem);
+            stack.set(DataComponents.BLOCK_ENTITY_DATA, CustomData.of(tag));
+        });
+
+        register("remove_block_entity_data", (ctx, json, meta) -> {
+            ItemStack stack = meta.input();
+            if (stack.isEmpty()) return;
+            JsonElement keyElem = json.get("key");
+
+            CustomData data = stack.getOrDefault(DataComponents.BLOCK_ENTITY_DATA, CustomData.EMPTY);
+            CompoundTag tag = data.copyTag();
+            if (keyElem.isJsonArray()) {
+                for (JsonElement k : keyElem.getAsJsonArray()) {
+                    removeNbtPath(tag, k.getAsString());
+                }
+            } else {
+                removeNbtPath(tag, keyElem.getAsString());
+            }
+            stack.set(DataComponents.BLOCK_ENTITY_DATA, CustomData.of(tag));
+        });
     }
 
     // ========== 公共注册接口 ==========

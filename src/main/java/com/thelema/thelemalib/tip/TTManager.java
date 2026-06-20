@@ -70,8 +70,6 @@ public class TTManager {
         }
 
         // 2. 标签处理器：收集所有匹配的处理器并按注册顺序执行
-        // 为了避免遍历所有标签导致性能问题，这里仅在标签处理器数量少时高效，
-        // 若注册大量标签，可优化为预先建立 Item -> 标签处理器的映射，但通常数量有限。
         List<Consumer<ItemTooltipEvent>> matchedTagHandlers = new ArrayList<>();
         for (Map.Entry<TagKey<Item>, Consumer<ItemTooltipEvent>> entry : TAG_HANDLERS.entrySet()) {
             if (stack.is(entry.getKey())) {
