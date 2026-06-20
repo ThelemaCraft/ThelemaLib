@@ -40,6 +40,11 @@ public class HandleRegistry {
             ctx.current = meta.input();
         });
 
+        register("copy_to_current", (ctx, json, meta) -> {
+            // 将输入物品的副本设为 current，原物品不受影响
+            ctx.current = meta.input().copy();
+        });
+
         register("copy_to_result", (ctx, json, meta) -> {
             // 将输入副本放入 output[0]
             ctx.output.set(0, meta.input().copy());
