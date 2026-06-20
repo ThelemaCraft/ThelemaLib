@@ -1,5 +1,5 @@
 // MapTag.java
-package com.thelema.thelemalib.data;
+package com.thelema.thelemalib.data.tool;
 
 import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;

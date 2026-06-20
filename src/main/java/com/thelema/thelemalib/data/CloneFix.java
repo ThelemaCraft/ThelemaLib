@@ -1,5 +1,6 @@
 package com.thelema.thelemalib.data;
 
+import com.thelema.thelemalib.ThelemaLib;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.Tag;
 import net.minecraft.world.entity.player.Player;
@@ -10,7 +11,7 @@ import net.neoforged.neoforge.event.entity.player.PlayerEvent;
 /**
  * 自动迁移的实体持久化数据
  * */
-@EventBusSubscriber
+@EventBusSubscriber(modid = ThelemaLib.MOD_ID)
 public class CloneFix {
 
     // 玩家持久化数据的迁移

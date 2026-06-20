@@ -1,4 +1,4 @@
-package com.thelema.thelemalib.data;
+package com.thelema.thelemalib.data.tool;
 
 import com.mojang.serialization.Codec;
 import com.thelema.thelemalib.ThelemaLib;

@@ -1,5 +1,6 @@
 package com.thelema.thelemalib.data;
 
+import com.thelema.thelemalib.data.tool.MapConverter;
 import net.minecraft.core.RegistryAccess;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.Tag;

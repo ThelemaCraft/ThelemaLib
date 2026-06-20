@@ -1,11 +1,13 @@
 package com.thelema.thelemalib;
 
 import com.thelema.thelemalib.config.TConfig;
+import com.thelema.thelemalib.data.tool.SyncLevelMapPacket;
 import com.thelema.thelemalib.recipe.TRecipeSerializers;
 import com.thelema.thelemalib.recipe.TRecipeTypes;
 import com.thelema.thelemalib.recipe.registry.ConditionRegistry;
 import com.thelema.thelemalib.recipe.registry.HandleRegistry;
 import com.thelema.thelemalib.recipe.registry.RecipeEventRegistry;
+import net.neoforged.neoforge.common.NeoForge;
 import org.slf4j.Logger;
 
 import com.mojang.logging.LogUtils;
@@ -34,7 +36,6 @@ public class ThelemaLib {
         ConditionRegistry.init();
         HandleRegistry.init();
         RecipeEventRegistry.init();
-
 
         cont.registerConfig(ModConfig.Type.COMMON, TConfig.SPEC);
     }

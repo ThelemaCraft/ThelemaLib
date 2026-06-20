@@ -1,7 +1,7 @@
 package com.thelema.thelemalib.block;
 
 import com.thelema.thelemalib.data.LevelMap;
-import com.thelema.thelemalib.data.MapTag;
+import com.thelema.thelemalib.data.tool.MapTag;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.protocol.game.ClientboundBlockDestructionPacket;
 import net.minecraft.server.level.ServerLevel;
