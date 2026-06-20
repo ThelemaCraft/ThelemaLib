@@ -3,6 +3,7 @@ package com.thelema.thelemalib.recipe.tool;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
+import com.thelema.thelemalib.ThelemaLib;
 import com.thelema.thelemalib.recipe.registry.HandleRegistry;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.Item;
@@ -43,6 +44,8 @@ public class OutputHandler {
             HandleConsumer handler = HandleRegistry.getHandle(type);
             if (handler != null) {
                 handler.accept(context, op, meta);
+            }else {
+                ThelemaLib.LOGGER.error("OutputHandler.handle：handler == null!");
             }
         }
     }

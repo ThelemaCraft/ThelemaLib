@@ -55,7 +55,6 @@ public record TShapelessRecipe(
 
         Context ctx = new Context(inputs, new ArrayList<>(List.of(result)));
 
-
         OutputHandler.handle(ctx, handle);
         return ctx.output.get(0);
     }

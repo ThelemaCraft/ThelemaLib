@@ -92,24 +92,26 @@ public class HandleRegistry {
 
         register("branch_sync", (ctx, json, meta) -> {
             List<ItemStack> pool = OutputHandler.getPool(ctx, meta.range());
-            boolean matched = Matcher.match(pool, json.get("condition"));
+            List<ItemStack> found = Matcher.found(pool, json.get("condition"));
 
-            if (matched && json.has("true")) {
+            if (!found.isEmpty() && json.has("true")) {
+                // 随机选一个，复制整个堆叠
+                ctx.current = found.get(new Random().nextInt(found.size()));
                 OutputHandler.handle(ctx, json.getAsJsonArray("true"));
-                ctx.current = meta.input();
-            } else if (!matched && json.has("false")) {
+            } else if (found.isEmpty() && json.has("false")) {
                 OutputHandler.handle(ctx, json.getAsJsonArray("false"));
             }
         });
 
         register("branch_sync_with_copy", (ctx, json, meta) -> {
             List<ItemStack> pool = OutputHandler.getPool(ctx, meta.range());
-            boolean matched = Matcher.match(pool, json.get("condition"));
+            List<ItemStack> found = Matcher.found(pool, json.get("condition"));
 
-            if (matched && json.has("true")) {
+            if (!found.isEmpty() && json.has("true")) {
+                // 随机选一个，复制整个堆叠
+                ctx.current = found.get(new Random().nextInt(found.size())).copy();
                 OutputHandler.handle(ctx, json.getAsJsonArray("true"));
-                ctx.current = meta.input().copy();
-            } else if (!matched && json.has("false")) {
+            } else if (found.isEmpty() && json.has("false")) {
                 OutputHandler.handle(ctx, json.getAsJsonArray("false"));
             }
         });
