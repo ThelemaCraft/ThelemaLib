@@ -90,6 +90,30 @@ public class HandleRegistry {
             }
         });
 
+        register("branch_sync", (ctx, json, meta) -> {
+            List<ItemStack> pool = OutputHandler.getPool(ctx, meta.range());
+            boolean matched = Matcher.match(pool, json.get("condition"));
+
+            if (matched && json.has("true")) {
+                OutputHandler.handle(ctx, json.getAsJsonArray("true"));
+                ctx.current = meta.input();
+            } else if (!matched && json.has("false")) {
+                OutputHandler.handle(ctx, json.getAsJsonArray("false"));
+            }
+        });
+
+        register("branch_sync_with_copy", (ctx, json, meta) -> {
+            List<ItemStack> pool = OutputHandler.getPool(ctx, meta.range());
+            boolean matched = Matcher.match(pool, json.get("condition"));
+
+            if (matched && json.has("true")) {
+                OutputHandler.handle(ctx, json.getAsJsonArray("true"));
+                ctx.current = meta.input().copy();
+            } else if (!matched && json.has("false")) {
+                OutputHandler.handle(ctx, json.getAsJsonArray("false"));
+            }
+        });
+
         // ========== 基础数值修改 ==========
 
         register("modify_damage", (ctx, json, meta) -> {
