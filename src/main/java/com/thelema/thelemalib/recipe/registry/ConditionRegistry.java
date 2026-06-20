@@ -85,6 +85,29 @@ public class ConditionRegistry {
             return reverse != result;
         });
 
+        register("block_entity_data", (stack, json) -> {
+            String key = json.get("key").getAsString();
+            String op = json.get("op").getAsString();
+            JsonElement valueElem = json.get("value");
+            boolean reverse = json.has("reverse") && json.get("reverse").getAsBoolean();
+
+            CustomData data = stack.get(DataComponents.BLOCK_ENTITY_DATA);
+            if (data == null) return reverse;
+
+            CompoundTag tag = data.copyTag();
+            String[] keys = key.split("\\.");
+            CompoundTag current = tag;
+            for (int i = 0; i < keys.length - 1; i++) {
+                if (!current.contains(keys[i], CompoundTag.TAG_COMPOUND)) return reverse;
+                current = current.getCompound(keys[i]);
+            }
+            String lastKey = keys[keys.length - 1];
+            if (!current.contains(lastKey)) return reverse;
+
+            Tag nbtTag = current.get(lastKey);
+            boolean result = compareNbt(nbtTag, op, valueElem);
+            return reverse != result;
+        });
     }
 
     private static boolean compareNbt(Tag tag, String op, JsonElement valueElem) {
