@@ -18,6 +18,6 @@ public class NoTemplateItem extends Item {
     @Override
     public void appendHoverText(ItemStack stack, TooltipContext context, List<Component> tip, TooltipFlag tooltipFlag) {
         new ToolTip(tip)
-                .trans("This Recipe has no default output, it's dynamic").color(ChatFormatting.GREEN).build();
+                .trans("item.thelemalib.no_template.desc").color(ChatFormatting.GREEN).build();
     }
 }

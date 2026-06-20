@@ -57,12 +57,27 @@ public final class MapTag<K, V> extends AbstractMap<K, V> {
         } catch (ClassCastException e) {
             return null;
         }
-        String encodedKey = MapConverter.encodeKey(k, null);
-        if (encodedKey == null || !tag.contains(encodedKey)) return null;
-        Tag raw = tag.get(encodedKey);
-        String type = MapConverter.getValueTypeId(encodedKey);
-        return (V) MapConverter.decodeValue(raw, type, provider);
+        String noSuffix = MapConverter.encodeKey(k, null);
+        if (noSuffix == null) return null;
+
+        // 1. 精确匹配无后缀键
+        if (tag.contains(noSuffix)) {
+            Tag raw = tag.get(noSuffix);
+            String type = MapConverter.getValueTypeId(noSuffix);
+            return (V) MapConverter.decodeValue(raw, type, provider);
+        }
+
+        // 2. 遍历查找带后缀的键（noSuffix + "->"）
+        for (String rawKey : tag.getAllKeys()) {
+            if (rawKey.startsWith(noSuffix + "->")) {
+                Tag raw = tag.get(rawKey);
+                String type = MapConverter.getValueTypeId(rawKey);
+                return (V) MapConverter.decodeValue(raw, type, provider);
+            }
+        }
+        return null;
     }
+
 
     @Override
     @Nullable
@@ -88,14 +103,44 @@ public final class MapTag<K, V> extends AbstractMap<K, V> {
         } catch (ClassCastException e) {
             return false;
         }
-        String encodedKey = MapConverter.encodeKey(k, null);
-        return encodedKey != null && tag.contains(encodedKey);
+        String noSuffix = MapConverter.encodeKey(k, null);
+        if (noSuffix == null) return false;
+        if (tag.contains(noSuffix)) return true;
+        for (String rawKey : tag.getAllKeys()) {
+            if (rawKey.startsWith(noSuffix + "->")) {
+                return true;
+            }
+        }
+        return false;
     }
 
     @Override
+    @SuppressWarnings("unchecked")
     public V remove(Object key) {
-        // 不支持单独删除（可扩展，但暂无必要）
-        throw new UnsupportedOperationException("Use clear() instead");
+        V value = get(key);
+        if (value == null) return null;
+        K k;
+        try {
+            k = (K) key;
+        } catch (ClassCastException e) {
+            return null;
+        }
+        String noSuffix = MapConverter.encodeKey(k, null);
+        if (noSuffix == null) return null;
+
+        // 移除无后缀键
+        tag.remove(noSuffix);
+        // 移除所有带后缀的键
+        List<String> toRemove = new ArrayList<>();
+        for (String rawKey : tag.getAllKeys()) {
+            if (rawKey.startsWith(noSuffix + "->")) {
+                toRemove.add(rawKey);
+            }
+        }
+        for (String rk : toRemove) {
+            tag.remove(rk);
+        }
+        return value;
     }
 
     @Override
