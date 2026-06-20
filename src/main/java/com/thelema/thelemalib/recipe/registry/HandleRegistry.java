@@ -59,6 +59,20 @@ public class HandleRegistry {
             ctx.output.add(pos, copy);
         });
 
+        register("set_result", (ctx, json, meta) -> {
+            if (json.has("new_item_id")) {
+                ResourceLocation id = ResourceLocation.tryParse(json.get("new_item_id").getAsString());
+                if (id != null) {
+                    Item item = BuiltInRegistries.ITEM.get(id);
+                    ctx.current = new ItemStack(item);
+                    ctx.output.set(0, ctx.current);
+                    return;
+                }
+            }
+            // 默认将 current 放入 output[0]
+            ctx.output.set(0, ctx.current);
+        });
+
         // ========== 分支控制 ==========
 
         register("branch", (ctx, json, meta) -> {
