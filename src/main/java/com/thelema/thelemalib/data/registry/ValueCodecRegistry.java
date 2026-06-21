@@ -35,7 +35,7 @@ public final class ValueCodecRegistry {
         BY_ID.put(typeId, entry);
     }
 
-    static Entry<?> getByClass(Class<?> clazz) {
+    public static Entry<?> getByClass(Class<?> clazz) {
         Entry<?> e = BY_CLASS.get(clazz);
         if (e != null) return e;
         for (var en : BY_CLASS.entrySet()) {
@@ -44,11 +44,11 @@ public final class ValueCodecRegistry {
         return null;
     }
 
-    static Entry<?> getById(String typeId) {
+    public static Entry<?> getById(String typeId) {
         return BY_ID.get(typeId);
     }
 
-    record Entry<T>(String typeId, Codec<T> codec) {}
+    public record Entry<T>(String typeId, Codec<T> codec) {}
 
     public static void init(){}
 
