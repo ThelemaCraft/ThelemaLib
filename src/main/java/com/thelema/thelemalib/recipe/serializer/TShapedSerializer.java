@@ -2,20 +2,15 @@ package com.thelema.thelemalib.recipe.serializer;
 
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
-import com.mojang.datafixers.util.Either;
-import com.mojang.serialization.Codec;
 import com.mojang.serialization.MapCodec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
-import com.thelema.thelemalib.generic.ItemRegister;
+import com.thelema.thelemalib.register.ItemRegister;
 import com.thelema.thelemalib.recipe.tool.JsonCodec;
 import com.thelema.thelemalib.recipe.type.TShapedRecipe;
-import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.codec.ByteBufCodecs;
 import net.minecraft.network.codec.StreamCodec;
-import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.item.Items;
 import net.minecraft.world.item.crafting.RecipeSerializer;
 import net.minecraft.world.item.crafting.ShapedRecipePattern;
 

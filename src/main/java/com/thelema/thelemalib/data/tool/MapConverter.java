@@ -2,6 +2,8 @@ package com.thelema.thelemalib.data.tool;
 
 import com.mojang.serialization.Codec;
 import com.thelema.thelemalib.ThelemaLib;
+import com.thelema.thelemalib.data.registry.KeyCodecRegistry;
+import com.thelema.thelemalib.data.registry.ValueCodecRegistry;
 import com.thelema.thelemalib.data.tuple.T2;
 import com.thelema.thelemalib.data.tuple.T3;
 import com.thelema.thelemalib.data.tuple.T4;

@@ -1,7 +1,6 @@
 package com.thelema.thelemalib.render;
 
 import com.thelema.thelemalib.data.LevelMap;
-import com.thelema.thelemalib.pack.HighlightEntityPacket;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;

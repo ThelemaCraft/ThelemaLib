@@ -1,9 +1,6 @@
 package com.thelema.thelemalib.block;
 
 import com.thelema.thelemalib.data.BlockMap;
-import com.thelema.thelemalib.data.LevelMap;
-import com.thelema.thelemalib.data.tool.MapTag;
-import com.thelema.thelemalib.data.tool.S2CPacket;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.protocol.game.ClientboundBlockDestructionPacket;
 import net.minecraft.server.level.ServerLevel;
@@ -12,7 +9,6 @@ import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.state.BlockState;
-import org.apache.logging.log4j.core.net.MailManager;
 
 import java.util.Map;
 

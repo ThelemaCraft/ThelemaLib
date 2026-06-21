@@ -7,7 +7,7 @@ import com.mojang.datafixers.util.Either;
 import com.mojang.serialization.Codec;
 import com.mojang.serialization.MapCodec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
-import com.thelema.thelemalib.generic.ItemRegister;
+import com.thelema.thelemalib.register.ItemRegister;
 import com.thelema.thelemalib.recipe.tool.JsonCodec;
 import com.thelema.thelemalib.recipe.type.TShapelessRecipe;
 import net.minecraft.core.NonNullList;
@@ -17,7 +17,6 @@ import net.minecraft.network.codec.ByteBufCodecs;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.item.Items;
 import net.minecraft.world.item.crafting.Ingredient;
 import net.minecraft.world.item.crafting.RecipeSerializer;
 

@@ -1,9 +1,9 @@
 package com.thelema.thelemalib;
 
 import com.thelema.thelemalib.config.TConfig;
-import com.thelema.thelemalib.data.tool.KeyCodecRegistry;
-import com.thelema.thelemalib.data.tool.ValueCodecRegistry;
-import com.thelema.thelemalib.generic.ItemRegister;
+import com.thelema.thelemalib.data.registry.KeyCodecRegistry;
+import com.thelema.thelemalib.data.registry.ValueCodecRegistry;
+import com.thelema.thelemalib.register.ItemRegister;
 import com.thelema.thelemalib.recipe.TRecipeSerializers;
 import com.thelema.thelemalib.recipe.TRecipeTypes;
 import com.thelema.thelemalib.recipe.registry.ConditionRegistry;

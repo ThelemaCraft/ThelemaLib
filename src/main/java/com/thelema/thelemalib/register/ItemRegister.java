@@ -1,6 +1,7 @@
-package com.thelema.thelemalib.generic;
+package com.thelema.thelemalib.register;
 
 import com.thelema.thelemalib.ThelemaLib;
+import com.thelema.thelemalib.generic.NoTemplateItem;
 import net.minecraft.world.item.Item;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.neoforge.registries.DeferredHolder;
