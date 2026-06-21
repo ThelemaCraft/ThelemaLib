@@ -1,31 +1,27 @@
 package com.thelema.thelemalib.data;
 
+import com.thelema.thelemalib.data.tool.MapConverter;
 import com.thelema.thelemalib.data.tool.MapTag;
-import com.thelema.thelemalib.data.tool.SyncLevelMapPacket;
+import com.thelema.thelemalib.data.tool.ServerSender;
 import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.saveddata.SavedData;
-import net.neoforged.neoforge.network.PacketDistributor;
 import org.jetbrains.annotations.NotNull;
 
-@SuppressWarnings("rawtypes")
+import java.util.HashMap;
+import java.util.Map;
+
+@SuppressWarnings({"rawtypes", "unchecked"})
 public class LevelMap extends SavedData {
-    // 直接使用 MapTag，它本身就是一个 Map<Object, Object>
-    private final MapTag tag;
+    private final Map map;
     private final ServerLevel level;
     private final String file;
 
-    // 私有构造函数，必须传入已构造的 MapTag
-    private LevelMap(MapTag mapTag, ServerLevel level, String file) {
-        tag = mapTag;
+    private LevelMap(Map map, ServerLevel level, String file) {
+        this.map = map;
         this.level = level;
         this.file = file;
-    }
-
-    /** 获取数据（返回标准 Map，实际为 MapTag） */
-    public MapTag map() {
-        return tag;
     }
 
     /** 在主世界 data 目录下创建文件 */
@@ -35,11 +31,10 @@ public class LevelMap extends SavedData {
 
     /** 在维度 data 目录下创建文件 */
     public static LevelMap common(ServerLevel level, String file) {
-        HolderLookup.Provider provider = level.registryAccess();
         return level.getDataStorage().computeIfAbsent(
             new Factory<>(
-                () -> new LevelMap(MapTag.create(provider), level, file),          // 新建空 MapTag
-                (nbt, p) -> new LevelMap(MapTag.wrap(nbt, p), level, file)       // 从 NBT 包装
+                () -> new LevelMap(new HashMap<>(), level, file),          // 新建空 Map
+                (nbt, p) -> new LevelMap(MapConverter.fromNbt(nbt, p), level, file)       // 从 NBT 反序列化
             ),
             file
         );
@@ -52,13 +47,19 @@ public class LevelMap extends SavedData {
 
     @Override
     public @NotNull CompoundTag save(@NotNull CompoundTag tag, HolderLookup.@NotNull Provider provider) {
-        return this.tag.getTag();
+        return MapConverter.toNBT(map, provider);
     }
 
-    public void sync() {
-        if (file == null) return; // 临时不持久化
-        CompoundTag tag = this.tag.getTag();
-        PacketDistributor.sendToAllPlayers(new SyncLevelMapPacket(file, tag));
+    /** 获取数据（返回标准 Map，实际为 MapTag） */
+    public Map map() {
+        return map;
     }
 
+    public ServerLevel level() {
+        return level;
+    }
+
+    public String file() {
+        return file;
+    }
 }

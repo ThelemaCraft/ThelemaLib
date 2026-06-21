@@ -1,7 +1,7 @@
 package com.thelema.thelemalib.data.tool;
 
 import com.thelema.thelemalib.ThelemaLib;
-import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.Tag;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
@@ -13,31 +13,31 @@ import net.neoforged.neoforge.network.handling.IPayloadContext;
 import net.neoforged.neoforge.network.registration.PayloadRegistrar;
 
 @EventBusSubscriber(modid = ThelemaLib.MOD_ID)
-public record SyncLevelMapPacket(String file, CompoundTag tag) implements CustomPacketPayload {
-    public static final Type<SyncLevelMapPacket> TYPE = new Type<>(ResourceLocation.fromNamespaceAndPath("thelemalib", "sync_level_map"));
+public record S2CPacket(String key, Tag value) implements CustomPacketPayload {
+    public static final Type<S2CPacket> TYPE = new Type<>(ResourceLocation.fromNamespaceAndPath("thelemalib", "s2c"));
 
     @Override
     public Type<? extends CustomPacketPayload> type() { return TYPE; }
 
-    public static final StreamCodec<FriendlyByteBuf, SyncLevelMapPacket> STREAM_CODEC = StreamCodec.of(
+    public static final StreamCodec<FriendlyByteBuf, S2CPacket> STREAM_CODEC = StreamCodec.of(
         (buf, pkt) -> {
-            buf.writeUtf(pkt.file);
-            buf.writeNbt(pkt.tag);
+            buf.writeUtf(pkt.key);
+            buf.writeNbt(pkt.value);
         },
-        buf -> new SyncLevelMapPacket(buf.readUtf(), buf.readNbt())
+        buf -> new S2CPacket(buf.readUtf(), buf.readNbt())
     );
 
-    public static void handle(SyncLevelMapPacket pkt, IPayloadContext ctx) {
-        ctx.enqueueWork(() -> LevelMapClientCache.put(pkt.file, pkt.tag));
+    public static void handle(S2CPacket pkt, IPayloadContext ctx) {
+        ctx.enqueueWork(() -> ClientCache.RAW_CACHE.put(pkt.key, pkt.value));
     }
 
     @SubscribeEvent
     public static void registerPayloads(final RegisterPayloadHandlersEvent event) {
         PayloadRegistrar registrar = event.registrar(ThelemaLib.MOD_ID);
         registrar.playToClient(
-                SyncLevelMapPacket.TYPE,
-                SyncLevelMapPacket.STREAM_CODEC,
-                SyncLevelMapPacket::handle
+                S2CPacket.TYPE,
+                S2CPacket.STREAM_CODEC,
+                S2CPacket::handle
         );
     }
 }

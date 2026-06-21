@@ -4,11 +4,14 @@ import com.thelema.thelemalib.data.tool.MapTag;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 
+import java.util.Map;
+
 /**
  * 基于 BlockPos 的持久化 Map，复用 LevelMap。
  *
  * @param <T> 值类型
  */
+@SuppressWarnings("unchecked")
 public class BlockMap<T> {
     private final LevelMap lm;
 
@@ -16,59 +19,58 @@ public class BlockMap<T> {
         this.lm = lm;
     }
 
-    public static <T> BlockMap<T> common(ServerLevel level, String file) {
+    public static <T> BlockMap<T> get(ServerLevel level, String file) {
         return new BlockMap<>(LevelMap.common(level, file));
-    }
-
-    public static <T> BlockMap<T> global(ServerLevel level, String file) {
-        return new BlockMap<>(LevelMap.global(level, file));
     }
 
     public static <T> BlockMap<T> temp(ServerLevel level) {
         return new BlockMap<>(LevelMap.temp(level));
     }
 
-    /** 获取底层 MapTag */
-    @SuppressWarnings("unchecked")
-    public MapTag<BlockPos, T> map() {
-        return lm.map();
-    }
-
     // ========== 便捷委托 ==========
 
     public T put(BlockPos key, T value) {
-        return map().put(key, value);
+        return (T) lm.map().put(key, value);
     }
 
     public T get(BlockPos key) {
-        return map().get(key);
+        return (T) lm.map().get(key);
     }
 
     public boolean containsKey(BlockPos key) {
-        return map().containsKey(key);
+        return lm.map().containsKey(key);
     }
 
     public T remove(BlockPos key) {
-        return map().remove(key);
+        return (T) lm.map().remove(key);
     }
 
     public int size() {
-        return map().size();
+        return lm.map().size();
     }
 
     public boolean isEmpty() {
-        return map().isEmpty();
+        return lm.map().isEmpty();
     }
 
     public void clear() {
-        map().clear();
+        lm.map().clear();
     }
 
     public void setDirty() {
         lm.setDirty();
     }
 
-    public void sync(){
-        lm.sync();
+    public Map<BlockPos, T> map(){
+        return lm.map();
     }
+
+    public ServerLevel level(){
+        return lm.level();
+    }
+
+    public String file(){
+        return lm.file();
+    }
+
 }

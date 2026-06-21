@@ -9,6 +9,7 @@ import org.jetbrains.annotations.Nullable;
 
 import java.util.*;
 
+// 即时序列化成本高
 /**
  * 继承 {@link AbstractMap} 的 Map 接口实现，底层直接操作 {@link CompoundTag}，零序列化开销。
  * <p>
@@ -18,6 +19,7 @@ import java.util.*;
  * @param <K> 键类型
  * @param <V> 值类型
  */
+@Deprecated
 public final class MapTag<K, V> extends AbstractMap<K, V> {
     private final CompoundTag tag;
     private final HolderLookup.Provider provider;
@@ -155,38 +157,169 @@ public final class MapTag<K, V> extends AbstractMap<K, V> {
 
     @Override
     @NotNull
+    public Set<K> keySet() {
+        return new AbstractSet<>() {
+            @Override
+            public @NotNull Iterator<K> iterator() {
+                // 复制当前所有原始键作为快照
+                List<String> rawKeys = new ArrayList<>(tag.getAllKeys());
+                return new Iterator<>() {
+                    private int index = 0;
+                    private K currentKey = null;  // 最近一次 next() 返回的键
+
+                    @Override
+                    public boolean hasNext() {
+                        return index < rawKeys.size();
+                    }
+
+                    @Override
+                    @SuppressWarnings("unchecked")
+                    public K next() {
+                        if (!hasNext()) throw new NoSuchElementException();
+                        String rawKey = rawKeys.get(index);
+                        currentKey = (K) MapConverter.decodeKey(rawKey);
+                        index++;
+                        return currentKey;
+                    }
+
+                    @Override
+                    public void remove() {
+                        if (currentKey == null)
+                            throw new IllegalStateException("next() must be called before remove()");
+
+                        // 1. 调用 MapTag 的 remove，删除所有相关原始键
+                        MapTag.this.remove(currentKey);
+
+                        // 2. 从快照中删除该逻辑键对应的所有原始键
+                        String noSuffix = MapConverter.encodeKey(currentKey, null);
+                        if (noSuffix != null) {
+                            Iterator<String> it = rawKeys.iterator();
+                            while (it.hasNext()) {
+                                String rk = it.next();
+                                if (rk.equals(noSuffix) || rk.startsWith(noSuffix + "->")) {
+                                    it.remove();
+                                }
+                            }
+                        }
+
+                        // 3. 调整索引：因为删除了当前元素（位于 index-1），后面的元素会前移
+                        index = Math.max(0, index - 1);
+                        currentKey = null;  // 防止重复 remove
+                    }
+                };
+            }
+
+            @Override
+            public int size() {
+                return tag.size();
+            }
+
+            @Override
+            public boolean removeAll(Collection<?> c) {
+                boolean modified = false;
+                for (Object key : c) {
+                    if (MapTag.this.containsKey(key)) {
+                        MapTag.this.remove(key);
+                        modified = true;
+                    }
+                }
+                return modified;
+            }
+
+            @Override
+            public void clear() {
+                MapTag.this.clear();
+            }
+        };
+    }
+
+    @Override
+    @NotNull
     public Set<Entry<K, V>> entrySet() {
-        if (entrySet == null) {
-            entrySet = new AbstractSet<>() {
-                @Override
-                public @NotNull Iterator<Entry<K, V>> iterator() {
-                    Iterator<String> keyIterator = tag.getAllKeys().iterator();
-                    return new Iterator<>() {
-                        @Override
-                        public boolean hasNext() {
-                            return keyIterator.hasNext();
-                        }
+        return new AbstractSet<>() {
+            @Override
+            public @NotNull Iterator<Entry<K, V>> iterator() {
+                // 复制当前所有原始键的快照
+                List<String> rawKeys = new ArrayList<>(tag.getAllKeys());
+                return new Iterator<>() {
+                    private int index = 0;
+                    private Entry<K, V> currentEntry = null;  // 最近一次 next() 返回的条目
 
-                        @Override
-                        @SuppressWarnings("unchecked")
-                        public Entry<K, V> next() {
-                            String rawKey = keyIterator.next();
-                            K key = (K) MapConverter.decodeKey(rawKey);
-                            Tag raw = tag.get(rawKey);
-                            String type = MapConverter.getValueTypeId(rawKey);
-                            V value = (V) MapConverter.decodeValue(raw, type, provider);
-                            return new SimpleEntry<>(key, value);
-                        }
-                    };
-                }
+                    @Override
+                    public boolean hasNext() {
+                        return index < rawKeys.size();
+                    }
 
-                @Override
-                public int size() {
-                    return tag.size();
+                    @Override
+                    @SuppressWarnings("unchecked")
+                    public Entry<K, V> next() {
+                        if (!hasNext()) throw new NoSuchElementException();
+                        String rawKey = rawKeys.get(index);
+                        K key = (K) MapConverter.decodeKey(rawKey);
+                        Tag raw = tag.get(rawKey);
+                        String type = MapConverter.getValueTypeId(rawKey);
+                        V value = (V) MapConverter.decodeValue(raw, type, provider);
+                        currentEntry = new SimpleEntry<>(key, value);
+                        index++;
+                        return currentEntry;
+                    }
+
+                    @Override
+                    public void remove() {
+                        if (currentEntry == null)
+                            throw new IllegalStateException("next() must be called before remove()");
+                        K key = currentEntry.getKey();
+                        // 删除键对应的所有底层 NBT 条目
+                        MapTag.this.remove(key);
+
+                        // 从快照中移除该逻辑键对应的所有原始键
+                        String noSuffix = MapConverter.encodeKey(key, null);
+                        if (noSuffix != null) {
+                            Iterator<String> it = rawKeys.iterator();
+                            while (it.hasNext()) {
+                                String rk = it.next();
+                                if (rk.equals(noSuffix) || rk.startsWith(noSuffix + "->")) {
+                                    it.remove();
+                                }
+                            }
+                        }
+                        // 调整索引，因为删除了当前元素（位于 index-1）
+                        index = Math.max(0, index - 1);
+                        currentEntry = null;  // 防止重复删除
+                    }
+                };
+            }
+
+            @Override
+            public int size() {
+                return tag.size();
+            }
+
+            @Override
+            public boolean removeAll(Collection<?> c) {
+                boolean modified = false;
+                // 使用迭代器遍历当前所有条目（快照），避免递归
+                Iterator<Entry<K, V>> it = iterator();
+                while (it.hasNext()) {
+                    Entry<K, V> entry = it.next();
+                    if (c.contains(entry)) {
+                        // 通过键删除
+                        MapTag.this.remove(entry.getKey());
+                        // 因为我们在迭代器遍历的同时修改了底层 Map，
+                        // 但迭代器基于快照，所以不会受到影响，仍然安全。
+                        // 注意：这里不能调用 it.remove()，因为迭代器的 remove 会基于快照删除，
+                        // 但我们已经手动删除了，所以只需标记修改即可。
+                        modified = true;
+                    }
                 }
-            };
-        }
-        return entrySet;
+                return modified;
+            }
+
+            @Override
+            public void clear() {
+                MapTag.this.clear();
+            }
+        };
     }
 
     // ========== 扩展方法 ==========

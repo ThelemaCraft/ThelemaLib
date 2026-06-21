@@ -11,11 +11,9 @@ import net.minecraft.nbt.*;
 
 import java.util.*;
 
-// 这个东西，我边用边修，几个月，但是设计思路被 MapNBT完爆了。
 public final class MapConverter {
 
     // ---------- 公共 API ----------
-    @Deprecated
     public static CompoundTag toNBT(Map<Object, Object> map, HolderLookup.Provider provider) {
         CompoundTag out = new CompoundTag();
         for (Map.Entry<Object, Object> e : map.entrySet()) {
@@ -33,7 +31,6 @@ public final class MapConverter {
         return out;
     }
 
-    @Deprecated
     public static Map<Object, Object> fromNbt(CompoundTag tag, HolderLookup.Provider provider) {
         Map<Object, Object> map = new HashMap<>();
         for (String rawKey : tag.getAllKeys()) {
@@ -82,6 +79,8 @@ public final class MapConverter {
                 String data = n.toString();
                 String suffix = valueTypeSuffix(value);
                 return suffix.isEmpty() ? typeId + "==" + data : typeId + "==" + data + "->" + suffix;
+            }else {
+                ThelemaLib.LOGGER.error("encodeKey, key instanceof Number n, typeId == null");
             }
         }
         // key 特殊
@@ -107,7 +106,7 @@ public final class MapConverter {
         return null;
     }
 
-    // 解码key，string(type==data) 到实际对象
+    // 解码 key，string(type==data) 到实际对象
     static Object decodeKey(String raw) {
         String base = raw.contains("->") ? raw.substring(0, raw.lastIndexOf("->")) : raw; // 剥除值类型后缀
         int idx = base.indexOf("==");
@@ -170,7 +169,7 @@ public final class MapConverter {
         return "unknown";
     }
 
-    // Value 序列化为 Tag
+    // 值编码
     static Tag encodeValue(Object value, HolderLookup.Provider provider) {
         if (value == null) return new CompoundTag(); // 空占位
         // 基础类型，直接转为对应的 Tag
@@ -200,7 +199,7 @@ public final class MapConverter {
         return codec.encodeStart(NbtOps.INSTANCE, value).getOrThrow();
     }
 
-    // ---------- 值解码 ----------
+    // 值解码
     static Object decodeValue(Tag tag, String type, HolderLookup.Provider provider) {
         // type 为空 → 基础类型，直接映射
         if (type.isEmpty()) {
@@ -230,7 +229,7 @@ public final class MapConverter {
         return ValueCodecRegistry.getById(type).codec().decode(NbtOps.INSTANCE, tag).getOrThrow().getFirst();
     }
 
-    // map 变 tag
+    // 容器编解码
     private static Tag encodeMap(Map<?,?> map, HolderLookup.Provider provider) {
         CompoundTag ct = new CompoundTag();
         for (Map.Entry<?,?> e : map.entrySet()) {

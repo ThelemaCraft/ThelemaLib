@@ -1,14 +1,14 @@
 package com.thelema.thelemalib;
 
 import com.thelema.thelemalib.config.TConfig;
-import com.thelema.thelemalib.data.tool.SyncLevelMapPacket;
+import com.thelema.thelemalib.data.tool.KeyCodecRegistry;
+import com.thelema.thelemalib.data.tool.ValueCodecRegistry;
 import com.thelema.thelemalib.generic.ItemRegister;
 import com.thelema.thelemalib.recipe.TRecipeSerializers;
 import com.thelema.thelemalib.recipe.TRecipeTypes;
 import com.thelema.thelemalib.recipe.registry.ConditionRegistry;
 import com.thelema.thelemalib.recipe.registry.HandleRegistry;
 import com.thelema.thelemalib.recipe.registry.RecipeEventRegistry;
-import net.neoforged.neoforge.common.NeoForge;
 import org.slf4j.Logger;
 
 import com.mojang.logging.LogUtils;
@@ -30,15 +30,20 @@ public class ThelemaLib {
     public ThelemaLib(IEventBus bus, ModContainer cont) {
 
         ItemRegister.register(bus);
-        TRecipeSerializers.SERIALIZERS.register(bus);
-        TRecipeTypes.TYPES.register(bus);
 
+        // recipe 包初始化
+        TRecipeSerializers.init(bus);
+        TRecipeTypes.init(bus);
+
+        // data 包初始化
         ConditionRegistry.init();
         HandleRegistry.init();
         RecipeEventRegistry.init();
+        KeyCodecRegistry.init();
+        ValueCodecRegistry.init();
 
-        bus.addListener(this::commonSetup);
         cont.registerConfig(ModConfig.Type.COMMON, TConfig.SPEC);
+        bus.addListener(this::commonSetup);
     }
 
     private void commonSetup(FMLCommonSetupEvent event) {
