@@ -71,8 +71,13 @@ public class TTManager {
                     var m = PATTERN.matcher(e.getKey());
                     if (m.matches()) {
                         String p = m.group(1);
-                        if (p.startsWith("tag.")) LANG_TAG.put(p.substring(4), e.getKey());
-                        else LANG_ITEM.put(p, e.getKey());
+                        // ✅ 修复：把点号换成冒号，与 BuiltInRegistries.ITEM.getKey().toString() 格式一致
+                        String normalized = p.replace('.', ':');
+                        if (p.startsWith("tag.")) {
+                            LANG_TAG.put(p.substring(4), e.getKey());
+                        } else {
+                            LANG_ITEM.put(normalized, e.getKey());
+                        }
                     }
                 }
             }
