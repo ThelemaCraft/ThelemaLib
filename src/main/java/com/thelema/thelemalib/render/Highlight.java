@@ -1,6 +1,7 @@
 package com.thelema.thelemalib.render;
 
 import com.thelema.thelemalib.data.LevelMap;
+import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
@@ -9,11 +10,13 @@ import net.neoforged.neoforge.network.PacketDistributor;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.function.BiConsumer;
 
+@Deprecated
 public class Highlight {
 
     static Map<String, List<Entity>> map(ServerLevel level){
-        return (Map<String, List<Entity>>) LevelMap.temp(level).map();
+        return null;
     }
 
     // 分组

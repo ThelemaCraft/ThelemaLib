@@ -7,7 +7,7 @@ import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.minecraft.resources.ResourceLocation;
 
-
+@Deprecated
 public record HighlightEntityPacket(int entityId, boolean add) implements CustomPacketPayload {
 
     public static final Type<HighlightEntityPacket> TYPE = new Type<>(ResourceLocation.fromNamespaceAndPath(ThelemaLib.MOD_ID, "highlight_entity"));

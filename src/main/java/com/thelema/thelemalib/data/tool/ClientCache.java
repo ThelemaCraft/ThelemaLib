@@ -12,5 +12,4 @@ public class ClientCache {
 
     // 第一个String用于分类（设计类似该模块其它部分），作为 Value的 Map是高效查询的容器
     public static final Map<String, Map<String, Tag>> MAP_CACHE = new ConcurrentHashMap<>();
-
 }

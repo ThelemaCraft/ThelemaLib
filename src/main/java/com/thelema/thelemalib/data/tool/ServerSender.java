@@ -4,6 +4,7 @@ import com.thelema.thelemalib.data.pack.PutAllPack;
 import com.thelema.thelemalib.data.pack.PutPack;
 import com.thelema.thelemalib.data.pack.RemoveAllPack;
 import com.thelema.thelemalib.data.pack.RemovePack;
+import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.Tag;
 import net.minecraft.server.level.ServerPlayer;
 import net.neoforged.neoforge.network.PacketDistributor;
@@ -36,11 +37,13 @@ public class ServerSender {
 
     // ========== 单条操作 ==========
     public ServerSender put(String key, Tag value) {
+        CompoundTag wrapper = new CompoundTag();
+        wrapper.put("v", value);   // 包装
         if (playerList == null || playerList.isEmpty()){
-            PacketDistributor.sendToAllPlayers(new PutPack(mapName, key, value));
+            PacketDistributor.sendToAllPlayers(new PutPack(mapName, key, wrapper));
         } else {
             for (ServerPlayer player : playerList) {
-                PacketDistributor.sendToPlayer(player, new PutPack(mapName, key, value));
+                PacketDistributor.sendToPlayer(player, new PutPack(mapName, key, wrapper));
             }
         }
         return this;
@@ -58,10 +61,16 @@ public class ServerSender {
     }
 
     // ========== 批量 putAll ==========
-
     public ServerSender putAll(List<String> keys, List<Tag> values) {
         if (keys == null || values == null || keys.size() != values.size() || keys.isEmpty()) return this;
-        PutAllPack pack = new PutAllPack(mapName, keys.size(), keys, values);
+        // 包装所有 value
+        List<CompoundTag> wrapped = new ArrayList<>(values.size());
+        for (Tag v : values) {
+            CompoundTag w = new CompoundTag();
+            w.put("v", v);
+            wrapped.add(w);
+        }
+        PutAllPack pack = new PutAllPack(mapName, keys.size(), keys, wrapped);
         if (playerList == null || playerList.isEmpty()) {
             PacketDistributor.sendToAllPlayers(pack);
         } else {
