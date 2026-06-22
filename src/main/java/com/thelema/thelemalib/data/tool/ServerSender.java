@@ -1,66 +1,93 @@
 package com.thelema.thelemalib.data.tool;
 
-import com.thelema.thelemalib.data.pack.AddToListPack;
-import com.thelema.thelemalib.data.pack.AddToListPack2;
+import com.thelema.thelemalib.data.pack.PutAllPack;
 import com.thelema.thelemalib.data.pack.PutPack;
-import com.thelema.thelemalib.data.pack.RemoveFromListPack;
-import com.thelema.thelemalib.data.pack.RemoveFromListPack2;
+import com.thelema.thelemalib.data.pack.RemoveAllPack;
 import com.thelema.thelemalib.data.pack.RemovePack;
-import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.Tag;
 import net.minecraft.server.level.ServerPlayer;
 import net.neoforged.neoforge.network.PacketDistributor;
 
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Map;
+
 public class ServerSender {
 
-    // ========== 覆盖整个键值 ==========
-    public static void put(String key, Tag value) {
-        PacketDistributor.sendToAllPlayers(new PutPack(key, value));
+    public String mapName;
+    public List<ServerPlayer> playerList;
+
+    public ServerSender(String mapName) {
+        this.mapName = mapName;
     }
 
-    public static void put(ServerPlayer player, String key, Tag value) {
-        PacketDistributor.sendToPlayer(player, new PutPack(key, value));
+    public ServerSender addPlayer(ServerPlayer player){
+        if (playerList == null) playerList = new ArrayList<>();
+        playerList.add(player);
+        return this;
     }
 
-    public static void remove(String key) {
-        PacketDistributor.sendToAllPlayers(new RemovePack(key));
+    public ServerSender setBroadcast(){
+        if (playerList == null) playerList = new ArrayList<>();
+        playerList.clear();
+        return this;
     }
 
-    public static void remove(ServerPlayer player, String key) {
-        PacketDistributor.sendToPlayer(player, new RemovePack(key));
+    // ========== 单条操作 ==========
+    public ServerSender put(String key, Tag value) {
+        if (playerList == null || playerList.isEmpty()){
+            PacketDistributor.sendToAllPlayers(new PutPack(mapName, key, value));
+        } else {
+            for (ServerPlayer player : playerList) {
+                PacketDistributor.sendToPlayer(player, new PutPack(mapName, key, value));
+            }
+        }
+        return this;
     }
 
-    // ========== 列表操作：单个元素 ==========
-    public static void addToList(String key, Tag value) {
-        PacketDistributor.sendToAllPlayers(new AddToListPack(key, value));
+    public ServerSender remove(String key) {
+        if (playerList == null || playerList.isEmpty()){
+            PacketDistributor.sendToAllPlayers(new RemovePack(mapName, key));
+        } else {
+            for (ServerPlayer player : playerList) {
+                PacketDistributor.sendToPlayer(player, new RemovePack(mapName, key));
+            }
+        }
+        return this;
     }
 
-    public static void addToList(ServerPlayer player, String key, Tag value) {
-        PacketDistributor.sendToPlayer(player, new AddToListPack(key, value));
+    // ========== 批量 putAll ==========
+
+    public ServerSender putAll(List<String> keys, List<Tag> values) {
+        if (keys == null || values == null || keys.size() != values.size() || keys.isEmpty()) return this;
+        PutAllPack pack = new PutAllPack(mapName, keys.size(), keys, values);
+        if (playerList == null || playerList.isEmpty()) {
+            PacketDistributor.sendToAllPlayers(pack);
+        } else {
+            for (ServerPlayer player : playerList) {
+                PacketDistributor.sendToPlayer(player, pack);
+            }
+        }
+        return this;
     }
 
-    public static void removeFromList(String key, Tag value) {
-        PacketDistributor.sendToAllPlayers(new RemoveFromListPack(key, value));
+    // ========== 批量 removeAll ==========
+    public ServerSender removeAll(List<String> keys) {
+        if (keys == null || keys.isEmpty()) return this;
+        RemoveAllPack pack = new RemoveAllPack(mapName, keys.size(), keys);
+        if (playerList == null || playerList.isEmpty()) {
+            PacketDistributor.sendToAllPlayers(pack);
+        } else {
+            for (ServerPlayer player : playerList) {
+                PacketDistributor.sendToPlayer(player, pack);
+            }
+        }
+        return this;
     }
 
-    public static void removeFromList(ServerPlayer player, String key, Tag value) {
-        PacketDistributor.sendToPlayer(player, new RemoveFromListPack(key, value));
+    public ServerSender removeAll(String... keys) {
+        return removeAll(Arrays.asList(keys));
     }
 
-    // ========== 列表操作：批量元素 ==========
-    public static void addAllToList(String key, ListTag values) {
-        PacketDistributor.sendToAllPlayers(new AddToListPack2(key, values));
-    }
-
-    public static void addAllToList(ServerPlayer player, String key, ListTag values) {
-        PacketDistributor.sendToPlayer(player, new AddToListPack2(key, values));
-    }
-
-    public static void removeAllFromList(String key, ListTag values) {
-        PacketDistributor.sendToAllPlayers(new RemoveFromListPack2(key, values));
-    }
-
-    public static void removeAllFromList(ServerPlayer player, String key, ListTag values) {
-        PacketDistributor.sendToPlayer(player, new RemoveFromListPack2(key, values));
-    }
 }

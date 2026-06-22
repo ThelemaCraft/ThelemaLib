@@ -1,8 +1,7 @@
 package com.thelema.thelemalib.register;
 
 import com.thelema.thelemalib.ThelemaLib;
-import com.thelema.thelemalib.data.pack.PutPack;
-import com.thelema.thelemalib.data.pack.RemovePack;
+import com.thelema.thelemalib.data.pack.*;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.network.event.RegisterPayloadHandlersEvent;
@@ -25,15 +24,9 @@ public class PackRegister {
     }
 
     private static void toClient(PayloadRegistrar registrar) {
-        registrar.playToClient(
-                PutPack.TYPE,
-                PutPack.STREAM_CODEC,
-                PutPack::handle
-        );
-        registrar.playToClient(
-                RemovePack.TYPE,
-                RemovePack.STREAM_CODEC,
-                RemovePack::handle
-        );
+        registrar.playToClient(PutPack.TYPE, PutPack.STREAM_CODEC, PutPack::handle);
+        registrar.playToClient(RemovePack.TYPE, RemovePack.STREAM_CODEC, RemovePack::handle);
+        registrar.playToClient(PutAllPack.TYPE, PutAllPack.STREAM_CODEC, PutAllPack::handle);
+        registrar.playToClient(RemoveAllPack.TYPE, RemoveAllPack.STREAM_CODEC, RemoveAllPack::handle);
     }
 }
