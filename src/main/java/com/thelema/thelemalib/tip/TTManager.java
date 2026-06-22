@@ -1,85 +1,118 @@
 package com.thelema.thelemalib.tip;
 
+import com.google.gson.JsonParser;
+import com.thelema.thelemalib.config.TConfig;
+import net.minecraft.client.Minecraft;
 import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.tags.TagKey;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
+import net.neoforged.api.distmarker.Dist;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
+import net.neoforged.neoforge.event.AddReloadListenerEvent;
 import net.neoforged.neoforge.event.entity.player.ItemTooltipEvent;
-import net.neoforged.neoforge.registries.DeferredHolder;
 
-import java.util.ArrayList;
+import java.io.InputStreamReader;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.function.Consumer;
+import java.util.regex.Pattern;
 
-@EventBusSubscriber
+@EventBusSubscriber(modid = "your_mod_id", value = Dist.CLIENT)
 public class TTManager {
-    // 特定物品处理器：key = 物品注册名(ResourceLocation字符串)
-    private static final Map<String, Consumer<ItemTooltipEvent>> ITEM_HANDLERS = new ConcurrentHashMap<>();
-    // 标签处理器：key = TagKey<Item>
-    private static final Map<TagKey<Item>, Consumer<ItemTooltipEvent>> TAG_HANDLERS = new ConcurrentHashMap<>();
 
-    // ========== 特定物品注册 ==========
+    private static final Map<String, String> ITEM_CACHE = new HashMap<>();
+    private static final Map<String, String> TAG_CACHE = new HashMap<>();
+    private static final Pattern INJECT_PATTERN = Pattern.compile("^tooltip\\.inject\\.(.+)$");
+    private static boolean loaded = false;
 
-    /** 通过物品注册名字符串注册 */
-    public static void item(String itemId, Consumer<ItemTooltipEvent> handler) {
-        ITEM_HANDLERS.put(itemId, handler);
-    }
+    // ---- 语言文件扫描 ----
+    private static void loadFromLanguageFile() {
+        if (loaded) return;
 
-    /** 通过 DeferredHolder<Item, ...> 注册 */
-    public static void item(DeferredHolder<Item, ? extends Item> holder, Consumer<ItemTooltipEvent> handler) {
-        item(holder.getId().toString(), handler);
-    }
+        String langCode = Minecraft.getInstance().getLanguageManager().getSelected();
+        ResourceLocation langPath = ResourceLocation.fromNamespaceAndPath(
+                "your_mod_id",
+                "lang/" + langCode + ".json"
+        );
 
-    /** 通过 Item 实例注册 */
-    public static void item(Item item, Consumer<ItemTooltipEvent> handler) {
-        ResourceLocation id = BuiltInRegistries.ITEM.getKey(item);
-        item(id.toString(), handler);
-    }
+        try {
+            var resource = Minecraft.getInstance().getResourceManager().getResource(langPath);
+            if (resource.isEmpty()) return;
 
-    // ========== 标签注册 ==========
+            try (var reader = new InputStreamReader(resource.get().open())) {
+                var json = JsonParser.parseReader(reader).getAsJsonObject();
 
-    /** 通过 TagKey<Item> 注册 */
-    public static void tag(TagKey<Item> tag, Consumer<ItemTooltipEvent> handler) {
-        TAG_HANDLERS.put(tag, handler);
-    }
-
-    /** 通过标签 ResourceLocation 字符串注册（例如 "minecraft:swords"） */
-    public static void tag(String tagId, Consumer<ItemTooltipEvent> handler) {
-        ResourceLocation loc = ResourceLocation.tryParse(tagId);
-        if (loc != null) {
-            tag(TagKey.create(BuiltInRegistries.ITEM.key(), loc), handler);
+                for (var entry : json.entrySet()) {
+                    String key = entry.getKey();
+                    var matcher = INJECT_PATTERN.matcher(key);
+                    if (matcher.matches()) {
+                        String path = matcher.group(1); // 如 "minecraft.diamond" 或 "tag.minecraft.logs"
+                        if (path.startsWith("tag.")) {
+                            String tagId = path.substring(4);
+                            TAG_CACHE.put(tagId, key);
+                        } else {
+                            ITEM_CACHE.put(path, key);
+                        }
+                    }
+                }
+            }
+            loaded = true;
+        } catch (Exception e) {
+            // 忽略加载失败（例如语言文件不存在）
         }
     }
 
-    // ========== 事件处理 ==========
+    // ---- 黑名单检查 ----
+    private static boolean isBlacklisted(String path) {
+        List<? extends String> blacklist = TConfig.CONFIG.tooltipBlacklist.get();
+        return blacklist.contains(path);
+    }
 
+    // ---- 事件处理 ----
     @SubscribeEvent
     public static void onItemTooltip(ItemTooltipEvent event) {
+        loadFromLanguageFile();
+
         ItemStack stack = event.getItemStack();
-        ResourceLocation id = BuiltInRegistries.ITEM.getKey(stack.getItem());
+        var tooltip = event.getToolTip();
 
-        // 1. 特定物品处理器（如果存在则执行，但不会阻止后续标签处理器的执行）
-        Consumer<ItemTooltipEvent> itemHandler = ITEM_HANDLERS.get(id.toString());
-        if (itemHandler != null) {
-            itemHandler.accept(event);
-        }
-
-        // 2. 标签处理器：收集所有匹配的处理器并按注册顺序执行
-        List<Consumer<ItemTooltipEvent>> matchedTagHandlers = new ArrayList<>();
-        for (Map.Entry<TagKey<Item>, Consumer<ItemTooltipEvent>> entry : TAG_HANDLERS.entrySet()) {
-            if (stack.is(entry.getKey())) {
-                matchedTagHandlers.add(entry.getValue());
+        // 1. 精确匹配物品 ID
+        String itemId = BuiltInRegistries.ITEM.getKey(stack.getItem()).toString();
+        String translationKey = ITEM_CACHE.get(itemId);
+        if (translationKey != null) {
+            // 检查黑名单（路径就是物品 ID）
+            if (!isBlacklisted(itemId)) {
+                tooltip.add(Component.translatable(translationKey));
             }
         }
 
-        // 执行匹配的标签处理器（即使前面有特定物品处理器也会执行，实现叠加效果）
-        for (Consumer<ItemTooltipEvent> handler : matchedTagHandlers) {
-            handler.accept(event);
+        // 2. 匹配标签
+        for (Map.Entry<String, String> entry : TAG_CACHE.entrySet()) {
+            String tagId = entry.getKey();
+            TagKey<Item> tagKey = TagKey.create(
+                    BuiltInRegistries.ITEM.key(),
+                    ResourceLocation.parse(tagId)
+            );
+            if (stack.is(tagKey)) {
+                // 检查黑名单（路径格式 "tag." + tagId）
+                String path = "tag." + tagId;
+                if (!isBlacklisted(path)) {
+                    tooltip.add(Component.translatable(entry.getValue()));
+                }
+                break; // 只添加第一个匹配的标签
+            }
         }
+    }
+
+    // ---- 资源重载（F3+T）清空缓存 ----
+    @SubscribeEvent
+    public static void onResourceReload(AddReloadListenerEvent event) {
+        ITEM_CACHE.clear();
+        TAG_CACHE.clear();
+        loaded = false;
     }
 }
