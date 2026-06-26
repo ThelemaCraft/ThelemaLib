@@ -14,7 +14,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * 所有注册的 Codec 必须通过 {@code codec.encodeStart(NbtOps, value)} 产出 {@link net.minecraft.nbt.StringTag}，
  * 否则在键编码时会抛出异常。
  */
-public final class KeyCodecRegistry {
+public final class KeyRegistry {
     private static final Map<Class<?>, Entry<?>> BY_CLASS = new ConcurrentHashMap<>();
     private static final Map<String, Entry<?>> BY_ID = new ConcurrentHashMap<>();
 

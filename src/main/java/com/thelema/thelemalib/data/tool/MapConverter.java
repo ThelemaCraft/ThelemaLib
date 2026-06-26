@@ -2,8 +2,8 @@ package com.thelema.thelemalib.data.tool;
 
 import com.mojang.serialization.Codec;
 import com.thelema.thelemalib.ThelemaLib;
-import com.thelema.thelemalib.data.registry.KeyCodecRegistry;
-import com.thelema.thelemalib.data.registry.ValueCodecRegistry;
+import com.thelema.thelemalib.data.registry.KeyRegistry;
+import com.thelema.thelemalib.data.registry.ValueRegistry;
 import com.thelema.thelemalib.data.tuple.T2;
 import com.thelema.thelemalib.data.tuple.T3;
 import com.thelema.thelemalib.data.tuple.T4;
@@ -13,6 +13,7 @@ import net.minecraft.nbt.*;
 
 import java.util.*;
 
+@SuppressWarnings("unchecked")
 public final class MapConverter {
 
     // ---------- 公共 API ----------
@@ -33,7 +34,7 @@ public final class MapConverter {
         return out;
     }
 
-    public static Map<Object, Object> fromNbt(CompoundTag tag, HolderLookup.Provider provider) {
+    public static Map<Object, Object> fromNBT(CompoundTag tag, HolderLookup.Provider provider) {
         Map<Object, Object> map = new HashMap<>();
         for (String rawKey : tag.getAllKeys()) {
             Object key = decodeKey(rawKey);
@@ -81,12 +82,12 @@ public final class MapConverter {
                 String data = n.toString();
                 String suffix = valueTypeSuffix(value);
                 return suffix.isEmpty() ? typeId + "==" + data : typeId + "==" + data + "->" + suffix;
-            }else {
+            } else {
                 ThelemaLib.LOGGER.error("encodeKey, key instanceof Number n, typeId == null");
             }
         }
         // key 特殊
-        KeyCodecRegistry.Entry<?> entry = KeyCodecRegistry.getByClass(key.getClass());
+        KeyRegistry.Entry<?> entry = KeyRegistry.getByClass(key.getClass());
         // 用 key类型 找到了对应的 codec
         if (entry != null) {
             // 把 key 变成了对应的 tag，都是 StringTag
@@ -125,7 +126,7 @@ public final class MapConverter {
             case "double" -> Double.parseDouble(data);
             // 自定义类型走注册表
             default -> {
-                KeyCodecRegistry.Entry<?> entry = KeyCodecRegistry.getById(typeId);
+                KeyRegistry.Entry<?> entry = KeyRegistry.getById(typeId);
                 yield entry != null ? entry.codec().decode(NbtOps.INSTANCE, StringTag.valueOf(data)).getOrThrow().getFirst() : null;
             }
         };
@@ -138,14 +139,19 @@ public final class MapConverter {
         if (value instanceof Map) return "map";
         if (value instanceof List<?> l) return "list<" + inferElementType(l) + ">";
         if (value instanceof Set<?> s) return "set<" + inferElementType(s) + ">";
-        if (value instanceof T2<?,?>) return "t2";
-        if (value instanceof T3<?,?,?>) return "t3";
-        if (value instanceof T4<?,?,?,?>) return "t4";
-        if (value instanceof T5<?,?,?,?,?>) return "t5";
+        if (value instanceof T2<?, ?>) return "t2";
+        if (value instanceof T3<?, ?, ?>) return "t3";
+        if (value instanceof T4<?, ?, ?, ?>) return "t4";
+        if (value instanceof T5<?, ?, ?, ?, ?>) return "t5";
 
         // 特殊的，不包括容器
-        ValueCodecRegistry.Entry<?> e = ValueCodecRegistry.getByClass(value.getClass());
-        return e != null ? e.typeId() : "";
+        ValueRegistry.CodecEntry<?> codec = ValueRegistry.getCodecByClass(value.getClass());
+        if (codec != null) return codec.typeId();
+
+        ValueRegistry.AdaptEntry<?> adapt = ValueRegistry.getAdaptByClass(value.getClass());
+        if (adapt != null) return adapt.typeId();
+
+        return "";
     }
 
     // 获取集合的类型
@@ -163,8 +169,10 @@ public final class MapConverter {
             if (o instanceof byte[]) return "byte[]";
             if (o instanceof int[]) return "int[]";
             if (o instanceof long[]) return "long[]";
-            ValueCodecRegistry.Entry<?> e = ValueCodecRegistry.getByClass(o.getClass());
+            ValueRegistry.CodecEntry<?> e = ValueRegistry.getCodecByClass(o.getClass());
             if (e != null) return e.typeId();
+            ValueRegistry.AdaptEntry<?> a = ValueRegistry.getAdaptByClass(o.getClass());
+            if (a != null) return a.typeId();
         }
         // unknow 保底
         ThelemaLib.LOGGER.error("inferElementType: list<unknown> or set<unknown>");
@@ -172,7 +180,7 @@ public final class MapConverter {
     }
 
     // 值编码
-    static Tag encodeValue(Object value, HolderLookup.Provider provider) {
+    public static Tag encodeValue(Object value, HolderLookup.Provider provider) {
         if (value == null) return new CompoundTag(); // 空占位
         // 基础类型，直接转为对应的 Tag
         if (value instanceof Byte b) return ByteTag.valueOf(b);
@@ -187,22 +195,34 @@ public final class MapConverter {
         if (value instanceof long[] la) return new LongArrayTag(la);
 
         // 容器，map 用 {}，list,set 用 []，tuple用
-        if (value instanceof Map<?,?> m) return encodeMap(m, provider);
+        if (value instanceof Map<?, ?> m) return encodeMap(m, provider);
         if (value instanceof List<?> l) return encodeList(l, provider);
         if (value instanceof Set<?> s) return encodeSet(s, provider);
         // 2-5，4个元组
-        if (value instanceof T2<?,?> t) return encodeT2(t, provider);
-        if (value instanceof T3<?,?,?> t) return encodeT3(t, provider);
-        if (value instanceof T4<?,?,?,?> t) return encodeT4(t, provider);
-        if (value instanceof T5<?,?,?,?,?> t) return encodeT5(t, provider);
+        if (value instanceof T2<?, ?> t) return encodeT2(t, provider);
+        if (value instanceof T3<?, ?, ?> t) return encodeT3(t, provider);
+        if (value instanceof T4<?, ?, ?, ?> t) return encodeT4(t, provider);
+        if (value instanceof T5<?, ?, ?, ?, ?> t) return encodeT5(t, provider);
 
         // 自定义类型，获取codec，转 Tag
-        Codec<Object> codec = (Codec<Object>) ValueCodecRegistry.getByClass(value.getClass()).codec();
-        return codec.encodeStart(NbtOps.INSTANCE, value).getOrThrow();
+        // 自定义类型：先查 Codec，再查 Adapt
+        ValueRegistry.CodecEntry<?> codecEntry = ValueRegistry.getCodecByClass(value.getClass());
+        if (codecEntry != null) {
+            Codec<Object> codec = (Codec<Object>) codecEntry.codec();
+            return codec.encodeStart(NbtOps.INSTANCE, value).getOrThrow();
+        }
+
+        ValueRegistry.AdaptEntry<?> adaptEntry = ValueRegistry.getAdaptByClass(value.getClass());
+        if (adaptEntry != null) {
+            return adaptEntry.adapt().toTag(cast(value), provider);
+        }
+
+        // fallback
+        return StringTag.valueOf(value.toString());
     }
 
     // 值解码
-    static Object decodeValue(Tag tag, String type, HolderLookup.Provider provider) {
+    public static Object decodeValue(Tag tag, String type, HolderLookup.Provider provider) {
         // type 为空 → 基础类型，直接映射
         if (type.isEmpty()) {
             if (tag instanceof ByteTag bt) return bt.getAsByte();
@@ -221,20 +241,31 @@ public final class MapConverter {
         // 容器类型
         if ("map".equals(type)) return decodeMap((CompoundTag) tag, provider);
         if (type.startsWith("list<")) return decodeList((ListTag) tag, extractElementType(type), provider);
-        if (type.startsWith("set<"))  return decodeSet((ListTag) tag, extractElementType(type), provider);
+        if (type.startsWith("set<")) return decodeSet((ListTag) tag, extractElementType(type), provider);
         if ("t2".equals(type)) return decodeT2((CompoundTag) tag, provider);
         if ("t3".equals(type)) return decodeT3((CompoundTag) tag, provider);
         if ("t4".equals(type)) return decodeT4((CompoundTag) tag, provider);
         if ("t5".equals(type)) return decodeT5((CompoundTag) tag, provider);
 
-        // 自定义类型，通过 type 获取对应的codec，把 Tag 变成对应的对象
-        return ValueCodecRegistry.getById(type).codec().decode(NbtOps.INSTANCE, tag).getOrThrow().getFirst();
+        // 自定义类型：先查 Codec，再查 Adapt
+        ValueRegistry.CodecEntry<?> codecEntry = ValueRegistry.getCodecById(type);
+        if (codecEntry != null) {
+            return codecEntry.codec().decode(NbtOps.INSTANCE, tag).getOrThrow().getFirst();
+        }
+
+        ValueRegistry.AdaptEntry<?> adaptEntry = ValueRegistry.getAdaptById(type);
+        if (adaptEntry != null) {
+            return adaptEntry.adapt().fromTag(tag, provider);
+        }
+
+        // fallback
+        return tag.toString();
     }
 
     // 容器编解码
-    private static Tag encodeMap(Map<?,?> map, HolderLookup.Provider provider) {
+    private static Tag encodeMap(Map<?, ?> map, HolderLookup.Provider provider) {
         CompoundTag ct = new CompoundTag();
-        for (Map.Entry<?,?> e : map.entrySet()) {
+        for (Map.Entry<?, ?> e : map.entrySet()) {
             // 编码 key
             String k = encodeKey(e.getKey(), e.getValue());
             // 编码 value，并放入
@@ -257,20 +288,22 @@ public final class MapConverter {
     }
 
     // tuple 编码
-    private static Tag encodeT2(T2<?,?> t, HolderLookup.Provider p) {
+    private static Tag encodeT2(T2<?, ?> t, HolderLookup.Provider p) {
         CompoundTag ct = new CompoundTag();
         ct.put("v1", encodeValue(t.v1, p));
         ct.put("v2", encodeValue(t.v2, p));
         return ct;
     }
-    private static Tag encodeT3(T3<?,?,?> t, HolderLookup.Provider p) {
+
+    private static Tag encodeT3(T3<?, ?, ?> t, HolderLookup.Provider p) {
         CompoundTag ct = new CompoundTag();
         ct.put("v1", encodeValue(t.v1, p));
         ct.put("v2", encodeValue(t.v2, p));
         ct.put("v3", encodeValue(t.v3, p));
         return ct;
     }
-    private static Tag encodeT4(T4<?,?,?,?> t, HolderLookup.Provider p) {
+
+    private static Tag encodeT4(T4<?, ?, ?, ?> t, HolderLookup.Provider p) {
         CompoundTag ct = new CompoundTag();
         ct.put("v1", encodeValue(t.v1, p));
         ct.put("v2", encodeValue(t.v2, p));
@@ -278,7 +311,8 @@ public final class MapConverter {
         ct.put("v4", encodeValue(t.v4, p));
         return ct;
     }
-    private static Tag encodeT5(T5<?,?,?,?,?> t, HolderLookup.Provider p) {
+
+    private static Tag encodeT5(T5<?, ?, ?, ?, ?> t, HolderLookup.Provider p) {
         CompoundTag ct = new CompoundTag();
         ct.put("v1", encodeValue(t.v1, p));
         ct.put("v2", encodeValue(t.v2, p));
@@ -322,19 +356,26 @@ public final class MapConverter {
         }
         return result;
     }
+
     // tuple 解码
-    private static T2<?,?> decodeT2(CompoundTag ct, HolderLookup.Provider p) {
+    private static T2<?, ?> decodeT2(CompoundTag ct, HolderLookup.Provider p) {
         return new T2<>(decodeValue(ct.get("v1"), "", p), decodeValue(ct.get("v2"), "", p));
     }
-    private static T3<?,?,?> decodeT3(CompoundTag ct, HolderLookup.Provider p) {
+
+    private static T3<?, ?, ?> decodeT3(CompoundTag ct, HolderLookup.Provider p) {
         return new T3<>(decodeValue(ct.get("v1"), "", p), decodeValue(ct.get("v2"), "", p), decodeValue(ct.get("v3"), "", p));
     }
-    private static T4<?,?,?,?> decodeT4(CompoundTag ct, HolderLookup.Provider p) {
+
+    private static T4<?, ?, ?, ?> decodeT4(CompoundTag ct, HolderLookup.Provider p) {
         return new T4<>(decodeValue(ct.get("v1"), "", p), decodeValue(ct.get("v2"), "", p), decodeValue(ct.get("v3"), "", p), decodeValue(ct.get("v4"), "", p));
     }
-    private static T5<?,?,?,?,?> decodeT5(CompoundTag ct, HolderLookup.Provider p) {
+
+    private static T5<?, ?, ?, ?, ?> decodeT5(CompoundTag ct, HolderLookup.Provider p) {
         return new T5<>(decodeValue(ct.get("v1"), "", p), decodeValue(ct.get("v2"), "", p), decodeValue(ct.get("v3"), "", p), decodeValue(ct.get("v4"), "", p), decodeValue(ct.get("v5"), "", p));
     }
+
     @SuppressWarnings("unchecked")
-    private static <T> T cast(Object o) { return (T) o; }
+    private static <T> T cast(Object o) {
+        return (T) o;
+    }
 }

@@ -1,8 +1,9 @@
 package com.thelema.thelemalib;
 
+import com.thelema.thelemalib.area.AreaRegistry;
 import com.thelema.thelemalib.config.TConfig;
-import com.thelema.thelemalib.data.registry.KeyCodecRegistry;
-import com.thelema.thelemalib.data.registry.ValueCodecRegistry;
+import com.thelema.thelemalib.data.registry.KeyRegistry;
+import com.thelema.thelemalib.data.registry.ValueRegistry;
 import com.thelema.thelemalib.register.ItemRegister;
 import com.thelema.thelemalib.recipe.TRecipeSerializers;
 import com.thelema.thelemalib.recipe.TRecipeTypes;
@@ -39,8 +40,9 @@ public class ThelemaLib {
         ConditionRegistry.init();
         HandleRegistry.init();
         RecipeEventRegistry.init();
-        KeyCodecRegistry.init();
-        ValueCodecRegistry.init();
+        KeyRegistry.init();
+        ValueRegistry.init();
+        AreaRegistry.init();
 
         cont.registerConfig(ModConfig.Type.COMMON, TConfig.SPEC);
         bus.addListener(this::commonSetup);

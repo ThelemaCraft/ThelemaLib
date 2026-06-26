@@ -30,7 +30,7 @@ public class LevelMap<K, V> extends SavedData implements Map<K, V> {
                         () -> new LevelMap<>(level, file),
                         (nbt, provider) -> {
                             LevelMap<K, V> lm = new LevelMap<>(level, file);
-                            lm.delegate.putAll((Map<? extends K, ? extends V>) MapConverter.fromNbt(nbt, provider));
+                            lm.delegate.putAll((Map<? extends K, ? extends V>) MapConverter.fromNBT(nbt, provider));
                             return lm;
                         }
                 ),
