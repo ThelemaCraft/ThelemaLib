@@ -61,16 +61,15 @@ public class ServerSender {
     }
 
     // ========== 批量 putAll ==========
-    public ServerSender putAll(List<String> keys, List<Tag> values) {
-        if (keys == null || values == null || keys.size() != values.size() || keys.isEmpty()) return this;
-        // 包装所有 value
-        List<CompoundTag> wrapped = new ArrayList<>(values.size());
-        for (Tag v : values) {
-            CompoundTag w = new CompoundTag();
-            w.put("v", v);
-            wrapped.add(w);
+    public ServerSender putAll(Map<String, Tag> data) {
+        if (data == null || data.isEmpty()) return this;
+
+        CompoundTag compound = new CompoundTag();
+        for (Map.Entry<String, Tag> entry : data.entrySet()) {
+            compound.put(entry.getKey(), entry.getValue());
         }
-        PutAllPack pack = new PutAllPack(mapName, keys.size(), keys, wrapped);
+
+        PutAllPack pack = new PutAllPack(mapName, compound);
         if (playerList == null || playerList.isEmpty()) {
             PacketDistributor.sendToAllPlayers(pack);
         } else {

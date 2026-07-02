@@ -11,41 +11,36 @@ import net.neoforged.neoforge.network.handling.IPayloadContext;
 
 import java.util.*;
 
-public record PutAllPack(String mapName, int size, List<String> keyList, List<CompoundTag> valueList) implements CustomPacketPayload {
+public record PutAllPack(String mapName, CompoundTag data) implements CustomPacketPayload {
     public static final Type<PutAllPack> TYPE = new Type<>(ResourceLocation.fromNamespaceAndPath("thelemalib", "put_all"));
 
     @Override
     public Type<? extends CustomPacketPayload> type() { return TYPE; }
 
     public static final StreamCodec<FriendlyByteBuf, PutAllPack> STREAM_CODEC = StreamCodec.of(
-        (buf, pkt) -> {
-            buf.writeUtf(pkt.mapName);
-            buf.writeInt(pkt.size);
-            pkt.keyList.forEach(buf::writeUtf);
-            pkt.valueList.forEach(buf::writeNbt);
-        },
-        buf -> {
-            String mapName = buf.readUtf();
-            int size = buf.readInt();
-            ArrayList<String> keyList = new ArrayList<>();
-            ArrayList<CompoundTag> valueList = new ArrayList<>();
-            for (int i = 0; i < size; i++) {
-                keyList.add(buf.readUtf());
-                valueList.add(buf.readNbt());
+            (buf, pkt) -> {
+                buf.writeUtf(pkt.mapName);
+                buf.writeNbt(pkt.data);  // 只写入一个 CompoundTag
+            },
+            buf -> {
+                String mapName = buf.readUtf();
+                CompoundTag data = buf.readNbt();
+                if (data == null) data = new CompoundTag();
+                return new PutAllPack(mapName, data);
             }
-            return new PutAllPack(mapName, size, keyList, valueList);
-        }
     );
 
     public static void handle(PutAllPack pkt, IPayloadContext ctx) {
         ctx.enqueueWork(() -> {
-            Map<String, Tag> map = ClientCache.MAP_CACHE.computeIfAbsent(pkt.mapName, s -> new HashMap<>());
-            for (int i = 0; i < pkt.size; i++) {
-                CompoundTag wrapper = pkt.valueList.get(i);
-                Tag actual = wrapper.get("v");
-                map.put(pkt.keyList.get(i), Objects.requireNonNullElse(actual, wrapper));
+            Map<String, Tag> map = ClientCache.MAP_CACHE.computeIfAbsent(pkt.mapName, k -> new java.util.concurrent.ConcurrentHashMap<>());
+            // 从 CompoundTag 中提取所有键值对
+            for (String key : pkt.data.getAllKeys()) {
+                Tag value = pkt.data.get(key);
+                if (value != null) {
+                    map.put(key, value);
+                }
             }
-            return map;
+            return null;
         });
     }
 }
