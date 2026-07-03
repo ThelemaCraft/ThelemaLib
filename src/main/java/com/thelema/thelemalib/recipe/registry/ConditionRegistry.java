@@ -31,7 +31,7 @@ public class ConditionRegistry {
 
         register("damage", (stack, json) -> {
             String op = json.get("op").getAsString();
-            int value = json.get("value").getAsInt();
+            int value = json.get("wrapper").getAsInt();
             boolean reverse = json.has("reverse") && json.get("reverse").getAsBoolean();
             int damage = stack.getOrDefault(DataComponents.DAMAGE, 0);
             boolean result = MathModifyTool.compare(op, damage, value);
@@ -40,7 +40,7 @@ public class ConditionRegistry {
 
         register("max_damage", (stack, json) -> {
             String op = json.get("op").getAsString();
-            int value = json.get("value").getAsInt();
+            int value = json.get("wrapper").getAsInt();
             boolean reverse = json.has("reverse") && json.get("reverse").getAsBoolean();
             int max = stack.getOrDefault(DataComponents.MAX_DAMAGE, stack.getMaxDamage());
             boolean result = MathModifyTool.compare(op, max, value);
@@ -50,7 +50,7 @@ public class ConditionRegistry {
         register("custom_data", (stack, json) -> {
             String key = json.get("key").getAsString();
             String op = json.get("op").getAsString();
-            JsonElement valueElem = json.get("value");
+            JsonElement valueElem = json.get("wrapper");
             boolean reverse = json.has("reverse") && json.get("reverse").getAsBoolean();
             CustomData data = stack.get(DataComponents.CUSTOM_DATA);
             if (data == null) return reverse;
@@ -88,7 +88,7 @@ public class ConditionRegistry {
         register("block_entity_data", (stack, json) -> {
             String key = json.get("key").getAsString();
             String op = json.get("op").getAsString();
-            JsonElement valueElem = json.get("value");
+            JsonElement valueElem = json.get("wrapper");
             boolean reverse = json.has("reverse") && json.get("reverse").getAsBoolean();
 
             CustomData data = stack.get(DataComponents.BLOCK_ENTITY_DATA);

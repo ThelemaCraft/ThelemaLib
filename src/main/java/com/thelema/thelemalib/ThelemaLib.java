@@ -36,7 +36,7 @@ public class ThelemaLib {
         TRecipeSerializers.init(bus);
         TRecipeTypes.init(bus);
 
-        // data 包初始化
+        // kv 包初始化
         ConditionRegistry.init();
         HandleRegistry.init();
         RecipeEventRegistry.init();

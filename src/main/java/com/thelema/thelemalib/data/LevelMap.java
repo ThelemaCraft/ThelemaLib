@@ -1,10 +1,16 @@
 package com.thelema.thelemalib.data;
 
+import com.thelema.thelemalib.ThelemaLib;
 import com.thelema.thelemalib.data.tool.MapConverter;
+import com.thelema.thelemalib.data.tool.MapDeltaPutSyncPack;
+import com.thelema.thelemalib.data.tool.MapDeltaRemoveSyncPack;
+import com.thelema.thelemalib.data.tool.MapSyncPack;
 import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.Tag;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.saveddata.SavedData;
+import net.neoforged.neoforge.network.PacketDistributor;
 
 import java.util.*;
 
@@ -36,6 +42,58 @@ public class LevelMap<K, V> extends SavedData implements Map<K, V> {
                 ),
                 file
         );
+    }
+
+    public void sync() {
+        CompoundTag tag = MapConverter.toNBT((Map<Object, Object>) delegate, level.registryAccess());
+        String dimId = level.dimension().location().toString();
+        PacketDistributor.sendToAllPlayers(new MapSyncPack(dimId, file, tag));
+    }
+
+    public void syncPut(V value, Object... keyPath) {
+        List<String> encodedPath = encodeKeyPath(keyPath);
+        if (encodedPath == null) return;
+
+        String valueTypeId = MapConverter.valueTypeSuffix(value);
+        Tag rawTag = MapConverter.encodeValue(value, level.registryAccess());
+        CompoundTag valueTag = wrapAsCompound(rawTag);               // 确保是 CompoundTag
+
+        MapDeltaPutSyncPack packet = new MapDeltaPutSyncPack(
+                level.dimension().location().toString(), file, encodedPath, valueTypeId, valueTag
+        );
+        PacketDistributor.sendToAllPlayers(packet);
+    }
+
+    public void syncRemove(Object... keyPath) {
+        List<String> encodedPath = encodeKeyPath(keyPath);
+        if (encodedPath == null) return;
+
+        MapDeltaRemoveSyncPack packet = new MapDeltaRemoveSyncPack(
+                level.dimension().location().toString(), file, encodedPath
+        );
+        PacketDistributor.sendToAllPlayers(packet);
+    }
+
+    // 辅助：键路径编码
+    private List<String> encodeKeyPath(Object... keyPath) {
+        List<String> encoded = new ArrayList<>();
+        for (Object key : keyPath) {
+            String s = MapConverter.encodeKeyOnly(key);
+            if (s == null) {
+                ThelemaLib.LOGGER.error("syncDelta: unsupported key type: {}", key.getClass());
+                return null;
+            }
+            encoded.add(s);
+        }
+        return encoded;
+    }
+
+    // 辅助：确保任何 Tag 都包装为 CompoundTag
+    private static CompoundTag wrapAsCompound(Tag tag) {
+        if (tag instanceof CompoundTag ct) return ct;
+        CompoundTag wrapper = new CompoundTag();
+        wrapper.put("_value", tag);           // 统一用 "_value" 字段存放原始 Tag
+        return wrapper;
     }
 
     @Override

@@ -1,7 +1,9 @@
 package com.thelema.thelemalib.register;
 
 import com.thelema.thelemalib.ThelemaLib;
-import com.thelema.thelemalib.data.pack.*;
+import com.thelema.thelemalib.data.tool.MapDeltaPutSyncPack;
+import com.thelema.thelemalib.data.tool.MapDeltaRemoveSyncPack;
+import com.thelema.thelemalib.data.tool.MapSyncPack;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.network.event.RegisterPayloadHandlersEvent;
@@ -24,9 +26,8 @@ public class PackRegister {
     }
 
     private static void toClient(PayloadRegistrar registrar) {
-        registrar.playToClient(PutPack.TYPE, PutPack.STREAM_CODEC, PutPack::handle);
-        registrar.playToClient(RemovePack.TYPE, RemovePack.STREAM_CODEC, RemovePack::handle);
-        registrar.playToClient(PutAllPack.TYPE, PutAllPack.STREAM_CODEC, PutAllPack::handle);
-        registrar.playToClient(RemoveAllPack.TYPE, RemoveAllPack.STREAM_CODEC, RemoveAllPack::handle);
+        registrar.playToClient(MapSyncPack.TYPE, MapSyncPack.STREAM_CODEC, MapSyncPack::handle);
+        registrar.playToClient(MapDeltaPutSyncPack.TYPE, MapDeltaPutSyncPack.STREAM_CODEC, MapDeltaPutSyncPack::handle);
+        registrar.playToClient(MapDeltaRemoveSyncPack.TYPE, MapDeltaRemoveSyncPack.STREAM_CODEC, MapDeltaRemoveSyncPack::handle);
     }
 }

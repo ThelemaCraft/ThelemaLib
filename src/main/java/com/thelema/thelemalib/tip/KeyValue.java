@@ -10,7 +10,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * 键值对工具，支持分别设置 key、分隔符、value 的样式。
+ * 键值对工具，支持分别设置 key、分隔符、wrapper 的样式。
  * 使用示例：
  * <pre>
  * KeyValue kv = new KeyValue("生命值", 20)
@@ -30,7 +30,7 @@ public class KeyValue {
     private Style delimiterStyle = Style.EMPTY;
 
     /**
-     * 构造键值对，key 和 value 会通过 ToolTip.parseToComponent 自动转换。
+     * 构造键值对，key 和 wrapper 会通过 ToolTip.parseToComponent 自动转换。
      */
     KeyValue(Object key, Object value) {
         this.key = ToolTip.parseToComponent(key);
@@ -79,7 +79,7 @@ public class KeyValue {
     }
 
     /**
-     * 构建最终的复合组件：key + delimiter + value，各自应用独立样式。
+     * 构建最终的复合组件：key + delimiter + wrapper，各自应用独立样式。
      */
     public Component build() {
         MutableComponent result = key.copy().withStyle(keyStyle);

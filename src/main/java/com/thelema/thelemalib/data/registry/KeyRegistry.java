@@ -11,7 +11,7 @@ import java.util.concurrent.ConcurrentHashMap;
 /**
  * 键 Codec 注册中心 —— 仅接受能编码为 StringTag 的 Codec。
  * <p>
- * 所有注册的 Codec 必须通过 {@code codec.encodeStart(NbtOps, value)} 产出 {@link net.minecraft.nbt.StringTag}，
+ * 所有注册的 Codec 必须通过 {@code codec.encodeStart(NbtOps, wrapper)} 产出 {@link net.minecraft.nbt.StringTag}，
  * 否则在键编码时会抛出异常。
  */
 public final class KeyRegistry {

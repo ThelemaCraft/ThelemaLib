@@ -13,7 +13,6 @@ import net.minecraft.nbt.*;
 
 import java.util.*;
 
-@SuppressWarnings("unchecked")
 public final class MapConverter {
 
     // ---------- 公共 API ----------
@@ -109,6 +108,32 @@ public final class MapConverter {
         return null;
     }
 
+    // 编码不带 value 后缀的 key
+    public static String encodeKeyOnly(Object key) {
+        if (key instanceof String s && !s.isEmpty()) return s;
+        // 基础数字类型
+        if (key instanceof Number n) {
+            String typeId;
+            if (n instanceof Byte) typeId = "byte";
+            else if (n instanceof Short) typeId = "short";
+            else if (n instanceof Integer) typeId = "int";
+            else if (n instanceof Long) typeId = "long";
+            else if (n instanceof Float) typeId = "float";
+            else if (n instanceof Double) typeId = "double";
+            else typeId = null;
+
+            if (typeId != null) return typeId + "==" + n;
+            return null;
+        }
+
+        KeyRegistry.Entry<?> entry = KeyRegistry.getByClass(key.getClass());
+        if (entry != null) {
+            Tag tag = entry.codec().encodeStart(NbtOps.INSTANCE, cast(key)).getOrThrow();
+            if (tag instanceof StringTag st) return entry.typeId() + "==" + st.getAsString();
+        }
+        return null;
+    }
+
     // 解码 key，string(type==data) 到实际对象
     static Object decodeKey(String raw) {
         String base = raw.contains("->") ? raw.substring(0, raw.lastIndexOf("->")) : raw; // 剥除值类型后缀
@@ -133,7 +158,7 @@ public final class MapConverter {
     }
 
     // 获取值类型的后缀
-    private static String valueTypeSuffix(Object value) {
+    public static String valueTypeSuffix(Object value) {
         // 空的，返回 空字符串
         if (value == null) return "";
         if (value instanceof Map) return "map";
@@ -180,6 +205,7 @@ public final class MapConverter {
     }
 
     // 值编码
+    @SuppressWarnings("unchecked")
     public static Tag encodeValue(Object value, HolderLookup.Provider provider) {
         if (value == null) return new CompoundTag(); // 空占位
         // 基础类型，直接转为对应的 Tag
@@ -209,7 +235,7 @@ public final class MapConverter {
         ValueRegistry.CodecEntry<?> codecEntry = ValueRegistry.getCodecByClass(value.getClass());
         if (codecEntry != null) {
             Codec<Object> codec = (Codec<Object>) codecEntry.codec();
-            return codec.encodeStart(NbtOps.INSTANCE, value).getOrThrow();
+            return codec.encodeStart(provider.createSerializationContext(NbtOps.INSTANCE), value).getOrThrow();
         }
 
         ValueRegistry.AdaptEntry<?> adaptEntry = ValueRegistry.getAdaptByClass(value.getClass());
@@ -250,12 +276,12 @@ public final class MapConverter {
         // 自定义类型：先查 Codec，再查 Adapt
         ValueRegistry.CodecEntry<?> codecEntry = ValueRegistry.getCodecById(type);
         if (codecEntry != null) {
-            return codecEntry.codec().decode(NbtOps.INSTANCE, tag).getOrThrow().getFirst();
+            return codecEntry.codec().decode(provider.createSerializationContext(NbtOps.INSTANCE), tag).getOrThrow().getFirst();
         }
 
-        ValueRegistry.AdaptEntry<?> adaptEntry = ValueRegistry.getAdaptById(type);
-        if (adaptEntry != null) {
-            return adaptEntry.adapt().fromTag(tag, provider);
+        ValueRegistry.AdaptEntry<?> adapt = ValueRegistry.getAdaptById(type);
+        if (adapt != null) {
+            return adapt.adapt().fromTag(tag, provider);
         }
 
         // fallback

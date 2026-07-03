@@ -7,7 +7,7 @@ public class TTExtra {
     private TTExtra() {}
 
     /**
-     * 创建键值对实例，key 和 value 会被自动解析（同 ToolTip.parse 逻辑）。
+     * 创建键值对实例，key 和 wrapper 会被自动解析（同 ToolTip.parse 逻辑）。
      */
     public static KeyValue keyValue(Object key, Object value) {
         return new KeyValue(key, value);
@@ -31,7 +31,7 @@ public class TTExtra {
         String KEY_LIQUID = "tooltip.loticlast.generic.key.liquid";
         String KEY_CONTENT = "tooltip.loticlast.generic.key.content";
         String KEY_UNKNOWN = "tooltip.loticlast.generic.key.unknown";
-        String VALUE_EMPTY = "tooltip.loticlast.generic.value.empty";
+        String VALUE_EMPTY = "tooltip.loticlast.generic.wrapper.empty";
     }
 
 }
