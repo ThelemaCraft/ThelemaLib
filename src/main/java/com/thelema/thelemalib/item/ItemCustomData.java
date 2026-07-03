@@ -37,19 +37,10 @@ public class ItemCustomData {
         set(stack, tag);
     }
 
-    /**复制 set 的NBT*/
-    public static void copy(ItemStack target, ItemStack source){
-        set(target, get(source));
-    }
-
-    /**布尔数据判断*/
-    public static boolean hasFlag(ItemStack stack, String flag){
+    /**有且为真*/
+    public static boolean hasAndIsTrue(ItemStack stack, String flag){
         CompoundTag orCreate = get(stack);
         return orCreate.contains(flag) && orCreate.getBoolean(flag);
     }
 
-    /**设置布尔*/
-    public static void setFlag(ItemStack stack, String flag, boolean b){
-        update(stack, tag -> tag.putBoolean(flag, b));
-    }
 }
