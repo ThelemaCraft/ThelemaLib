@@ -8,17 +8,19 @@ import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.common.NeoForge;
 import net.neoforged.neoforge.event.level.LevelEvent;
+import org.jetbrains.annotations.Nullable;
 
 @EventBusSubscriber
 public class AreaManager {
     static final String KEY = "thelemalib_area_manager";
 
     private AreaManager() {}
-
+    /**添加一个区域，指定类型*/
     public static boolean add(ServerLevel level, String type, String name, BlockPos a, BlockPos b) {
         return add(level, type, name, posToAABB(a, b));
     }
 
+    /**添加一个区域，指定类型, 传入AABB*/
     public static boolean add(ServerLevel level, String type, String name, AABB aabb) {
         AreaRegistry.AreaCreator creator = AreaRegistry.REGISTRY.get(type);
         if (creator == null) return false;
@@ -28,6 +30,7 @@ public class AreaManager {
         return true;
     }
 
+    /**添加一个区域，不使用类型，删除使用 area.name() 做 key*/
     public static boolean add(ServerLevel level, Area area){
         NeoForge.EVENT_BUS.register(area);
         map(level).put(area.name(), area);
@@ -40,6 +43,11 @@ public class AreaManager {
         if (area == null) return false;
         NeoForge.EVENT_BUS.unregister(area);
         return true;
+    }
+
+    public static @Nullable Area get(ServerLevel level, String name){
+        LevelMap<String, Area> map = map(level);
+        return map.get(name);
     }
 
     public static AABB posToAABB(BlockPos a, BlockPos b) {

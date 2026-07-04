@@ -12,9 +12,14 @@ import net.minecraft.nbt.*;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.tags.TagKey;
+import net.minecraft.world.food.FoodProperties;
+import net.minecraft.world.item.DyeColor;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.alchemy.PotionContents;
 import net.minecraft.world.item.component.CustomData;
+import net.minecraft.world.item.component.DyedItemColor;
+import net.minecraft.world.item.component.Tool;
 import net.minecraft.world.item.enchantment.Enchantment;
 import net.minecraft.world.item.enchantment.ItemEnchantments;
 
@@ -135,6 +140,103 @@ public class ConditionRegistry {
             int level = enchantments.getLevel(holder);
 
             boolean result = MathModifyTool.compare(op, level, value);
+            return reverse != result;
+        });
+
+        register("food_nutrition", (stack, json, provider) -> {
+            FoodProperties food = stack.get(DataComponents.FOOD);
+            if (food == null) return false;
+            String op = json.has("op") ? json.get("op").getAsString() : ">=";
+            int value = json.get("value").getAsInt();
+            boolean reverse = json.has("reverse") && json.get("reverse").getAsBoolean();
+            boolean result = MathModifyTool.compare(op, food.nutrition(), value);
+            return reverse != result;
+        });
+
+        register("food_saturation", (stack, json, provider) -> {
+            FoodProperties food = stack.get(DataComponents.FOOD);
+            if (food == null) return false;
+            String op = json.has("op") ? json.get("op").getAsString() : ">=";
+            float value = json.get("value").getAsFloat();
+            boolean reverse = json.has("reverse") && json.get("reverse").getAsBoolean();
+            boolean result = MathModifyTool.compare(op, food.saturation(), value);
+            return reverse != result;
+        });
+
+        register("tool_speed", (stack, json, provider) -> {
+            Tool tool = stack.get(DataComponents.TOOL);
+            if (tool == null) return false;
+            String op = json.has("op") ? json.get("op").getAsString() : ">=";
+            float value = json.get("value").getAsFloat();
+            boolean reverse = json.has("reverse") && json.get("reverse").getAsBoolean();
+            boolean result = MathModifyTool.compare(op, tool.defaultMiningSpeed(), value);
+            return reverse != result;
+        });
+
+        register("damage_per_block", (stack, json, provider) -> {
+            Tool tool = stack.get(DataComponents.TOOL);
+            if (tool == null) return false;
+            String op = json.has("op") ? json.get("op").getAsString() : ">=";
+            float value = json.get("value").getAsFloat();
+            boolean reverse = json.has("reverse") && json.get("reverse").getAsBoolean();
+            boolean result = MathModifyTool.compare(op, tool.damagePerBlock(), value);
+            return reverse != result;
+        });
+
+        register("dyed_color", (stack, json, provider) -> {
+            DyedItemColor color = stack.get(DataComponents.DYED_COLOR);
+            if (color == null) return false;
+            String op = json.has("op") ? json.get("op").getAsString() : "=";
+            int value = json.get("value").getAsInt();
+            boolean reverse = json.has("reverse") && json.get("reverse").getAsBoolean();
+            boolean result = MathModifyTool.compare(op, color.rgb(), value);
+            return reverse != result;
+        });
+
+        register("potion_color", (stack, json, provider) -> {
+            PotionContents contents = stack.get(DataComponents.POTION_CONTENTS);
+            if (contents == null) return false;
+            int color = contents.customColor().orElse(0);
+            String op = json.has("op") ? json.get("op").getAsString() : "=";
+            int value = json.get("value").getAsInt();
+            boolean reverse = json.has("reverse") && json.get("reverse").getAsBoolean();
+            boolean result = MathModifyTool.compare(op, color, value);
+            return reverse != result;
+        });
+
+        register("banner_base_color", (stack, json, provider) -> {
+            DyeColor actual = stack.get(DataComponents.BASE_COLOR);
+            if (actual == null) return false;
+            JsonElement valElem = json.get("value");
+            DyeColor target = null;
+            if (valElem.isJsonPrimitive()) {
+                if (valElem.getAsJsonPrimitive().isNumber()) {
+                    target = DyeColor.byId(valElem.getAsInt());
+                } else if (valElem.getAsJsonPrimitive().isString()) {
+                    target = DyeColor.byName(valElem.getAsString(), null);
+                }
+            }
+            if (target == null) return false;
+            boolean reverse = json.has("reverse") && json.get("reverse").getAsBoolean();
+            boolean result = actual == target;
+            return reverse != result;
+        });
+
+        register("max_stack_size", (stack, json, provider) -> {
+            int max = stack.getOrDefault(DataComponents.MAX_STACK_SIZE, stack.getMaxStackSize());
+            String op = json.has("op") ? json.get("op").getAsString() : ">=";
+            int value = json.get("value").getAsInt();
+            boolean reverse = json.has("reverse") && json.get("reverse").getAsBoolean();
+            boolean result = MathModifyTool.compare(op, max, value);
+            return reverse != result;
+        });
+
+        register("repair_cost", (stack, json, provider) -> {
+            int cost = stack.getOrDefault(DataComponents.REPAIR_COST, 0);
+            String op = json.has("op") ? json.get("op").getAsString() : ">=";
+            int value = json.get("value").getAsInt();
+            boolean reverse = json.has("reverse") && json.get("reverse").getAsBoolean();
+            boolean result = MathModifyTool.compare(op, cost, value);
             return reverse != result;
         });
     }

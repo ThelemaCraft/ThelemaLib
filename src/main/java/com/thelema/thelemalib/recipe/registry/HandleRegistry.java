@@ -24,13 +24,20 @@ import net.minecraft.world.entity.EquipmentSlotGroup;
 import net.minecraft.world.entity.ai.attributes.Attribute;
 import net.minecraft.world.entity.ai.attributes.AttributeModifier;
 import net.minecraft.world.entity.ai.attributes.Attributes;
+import net.minecraft.world.food.FoodProperties;
 import net.minecraft.world.item.ArmorItem;
+import net.minecraft.world.item.DyeColor;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.alchemy.PotionContents;
 import net.minecraft.world.item.component.CustomData;
+import net.minecraft.world.item.component.DyedItemColor;
 import net.minecraft.world.item.component.ItemAttributeModifiers;
+import net.minecraft.world.item.component.Tool;
 import net.minecraft.world.item.enchantment.Enchantment;
 import net.minecraft.world.item.enchantment.ItemEnchantments;
+import net.minecraft.world.level.block.entity.BannerPattern;
+import net.minecraft.world.level.block.entity.BannerPatternLayers;
 
 import java.util.*;
 
@@ -86,9 +93,8 @@ public class HandleRegistry {
             }
         });
 
-        // ========== 基础数值修改 ==========
 
-        register("modify_damage", (ctx, json, meta, provider) -> {
+        register("damage", (ctx, json, meta, provider) -> {
             ItemStack stack = meta.input();
             if (stack.isEmpty()) return;
             String op = json.get("op").getAsString();
@@ -98,7 +104,7 @@ public class HandleRegistry {
             stack.set(DataComponents.DAMAGE, Math.max(0, newVal));
         });
 
-        register("modify_max_damage", (ctx, json, meta, provider) -> {
+        register("max_damage", (ctx, json, meta, provider) -> {
             ItemStack stack = meta.input();
             if (stack.isEmpty()) return;
             String op = json.get("op").getAsString();
@@ -108,7 +114,7 @@ public class HandleRegistry {
             stack.set(DataComponents.MAX_DAMAGE, Math.max(1, newVal));
         });
 
-        register("modify_count", (ctx, json, meta, provider) -> {
+        register("count", (ctx, json, meta, provider) -> {
             ItemStack stack = meta.input();
             if (stack.isEmpty()) return;
             String op = json.get("op").getAsString();
@@ -120,10 +126,10 @@ public class HandleRegistry {
 
         // ========== 属性修改 ==========
 
-        register("modify_armor", (ctx, json, meta, provider) -> applyAttribute(ctx, json, meta, Attributes.ARMOR));
-        register("modify_armor_toughness", (ctx, json, meta, provider) -> applyAttribute(ctx, json, meta, Attributes.ARMOR_TOUGHNESS));
-        register("modify_attack_speed", (ctx, json, meta, provider) -> applyAttribute(ctx, json, meta, Attributes.ATTACK_SPEED));
-        register("modify_attack_damage", (ctx, json, meta, provider) -> applyAttribute(ctx, json, meta, Attributes.ATTACK_DAMAGE));
+        register("armor", (ctx, json, meta, provider) -> applyAttribute(ctx, json, meta, Attributes.ARMOR));
+        register("armor_toughness", (ctx, json, meta, provider) -> applyAttribute(ctx, json, meta, Attributes.ARMOR_TOUGHNESS));
+        register("attack_speed", (ctx, json, meta, provider) -> applyAttribute(ctx, json, meta, Attributes.ATTACK_SPEED));
+        register("attack_damage", (ctx, json, meta, provider) -> applyAttribute(ctx, json, meta, Attributes.ATTACK_DAMAGE));
 
         // ========== 组件操作 ==========
 
@@ -178,7 +184,7 @@ public class HandleRegistry {
 
         // ========== 自定义 NBT ==========
 
-        register("modify_custom_data", (ctx, json, meta, provider) -> {
+        register("custom_data", (ctx, json, meta, provider) -> {
             ItemStack stack = meta.input();
             if (stack.isEmpty()) return;
             String key = json.get("key").getAsString();
@@ -208,7 +214,7 @@ public class HandleRegistry {
         });
 
         // ========== 方块实体数据(放置和破坏不丢失) ==========
-        register("modify_block_entity_data", (ctx, json, meta, provider) -> {
+        register("block_entity_data", (ctx, json, meta, provider) -> {
             ItemStack stack = meta.input();
             if (stack.isEmpty()) return;
             String key = json.get("key").getAsString();
@@ -288,6 +294,173 @@ public class HandleRegistry {
             mutable.set(holder, newLevel);
             stack.set(DataComponents.ENCHANTMENTS, mutable.toImmutable());
         });
+
+        // ========== 饱食度 ==========
+        register("food_nutrition", (ctx, json, meta, provider) -> {
+            ItemStack stack = meta.input();
+            if (stack.isEmpty()) return;
+            String op = json.has("op") ? json.get("op").getAsString() : "=";
+            int value = json.get("value").getAsInt();
+            FoodProperties oldFood = stack.get(DataComponents.FOOD);
+            if (oldFood == null) return;
+            int oldVal = oldFood.nutrition();
+            int newVal = (int) MathModifyTool.number(op, value, oldVal);
+
+            FoodProperties newFood = new FoodProperties(
+                    newVal,
+                    oldFood.saturation(),
+                    oldFood.canAlwaysEat(),
+                    oldFood.eatSeconds(),
+                    oldFood.usingConvertsTo(),
+                    new ArrayList<>(oldFood.effects())
+            );
+
+            stack.set(DataComponents.FOOD, newFood);
+        });
+
+        // ========== 饱和 ==========
+        register("food_saturation", (ctx, json, meta, provider) -> {
+            ItemStack stack = meta.input();
+            if (stack.isEmpty()) return;
+            String op = json.has("op") ? json.get("op").getAsString() : "=";
+            float value = json.get("value").getAsFloat();
+            FoodProperties oldFood = stack.get(DataComponents.FOOD);
+            if (oldFood == null) return;
+            float oldVal = oldFood.saturation();
+            float newVal = (float) MathModifyTool.number(op, value, oldVal);
+
+            FoodProperties newFood = new FoodProperties(
+                    oldFood.nutrition(),
+                    newVal,
+                    oldFood.canAlwaysEat(),
+                    oldFood.eatSeconds(),
+                    oldFood.usingConvertsTo(),
+                    new ArrayList<>(oldFood.effects())
+            );
+            stack.set(DataComponents.FOOD, newFood);
+        });
+
+        // ========== 挖掘速度 ==========
+        register("tool_speed", (ctx, json, meta, provider) -> {
+            ItemStack stack = meta.input();
+            if (stack.isEmpty()) return;
+            Tool oldTool = stack.get(DataComponents.TOOL);
+            if (oldTool == null) return;
+            String op = json.has("op") ? json.get("op").getAsString() : "=";
+            float value = json.get("value").getAsFloat();
+            float oldVal = oldTool.defaultMiningSpeed();
+            float newVal = (float) MathModifyTool.number(op, value, oldVal);
+            Tool newTool = new Tool(oldTool.rules(), newVal, oldTool.damagePerBlock());
+            stack.set(DataComponents.TOOL, newTool);
+        });
+
+        // ========== 工具每方块耐久消耗 ==========
+        register("damage_per_block", (ctx, json, meta, provider) -> {
+            ItemStack stack = meta.input();
+            if (stack.isEmpty()) return;
+            Tool oldTool = stack.get(DataComponents.TOOL);
+            if (oldTool == null) return;
+            String op = json.has("op") ? json.get("op").getAsString() : "=";
+            float value = json.get("value").getAsFloat();
+            float oldVal = oldTool.damagePerBlock();
+            float newVal = (float) MathModifyTool.number(op, value, oldVal);
+            // 确保非负
+            newVal = Math.max(0, newVal);
+            Tool newTool = new Tool(oldTool.rules(), oldTool.defaultMiningSpeed(), (int) newVal);
+            stack.set(DataComponents.TOOL, newTool);
+        });
+
+        // ========== 颜色 ==========
+        register("dyed_color", (ctx, json, meta, provider) -> {
+            ItemStack stack = meta.input();
+            if (stack.isEmpty()) return;
+
+            String op = json.has("op") ? json.get("op").getAsString() : "=";
+            int value = json.get("value").getAsInt();
+
+            DyedItemColor oldColor = stack.get(DataComponents.DYED_COLOR);
+            int oldVal = oldColor != null ? oldColor.rgb() : 0xA06540;
+            int newVal = (int) MathModifyTool.number(op, value, oldVal);
+            newVal = Math.max(0, Math.min(0xFFFFFF, newVal));
+
+            boolean showInTooltip = oldColor != null && oldColor.showInTooltip();
+            stack.set(DataComponents.DYED_COLOR, new DyedItemColor(newVal, showInTooltip));
+        });
+
+        // ========== 药水颜色 ==========
+        register("potion_color", (ctx, json, meta, provider) -> {
+            ItemStack stack = meta.input();
+            if (stack.isEmpty()) return;
+
+            String op = json.has("op") ? json.get("op").getAsString() : "=";
+            int value = json.get("value").getAsInt();
+
+            PotionContents oldContents = stack.get(DataComponents.POTION_CONTENTS);
+            int oldVal = oldContents != null ? oldContents.customColor().orElse(0) : 0;
+            int newVal = (int) MathModifyTool.number(op, value, oldVal);
+            newVal = Math.max(0, Math.min(0xFFFFFF, newVal));
+
+            PotionContents newContents;
+            if (oldContents == null) {
+                newContents = new PotionContents(Optional.empty(), Optional.of(newVal), List.of());
+            } else {
+                newContents = new PotionContents(
+                        oldContents.potion(),
+                        Optional.of(newVal),
+                        oldContents.customEffects()
+                );
+            }
+            stack.set(DataComponents.POTION_CONTENTS, newContents);
+        });
+
+        // ========== 旗帜基础色 ==========
+        register("banner_base_color", (ctx, json, meta, provider) -> {
+            ItemStack stack = meta.input();
+            if (stack.isEmpty()) return;
+            String op = json.has("op") ? json.get("op").getAsString() : "=";
+            // 对于颜色，我们支持整数ID（0-15）或颜色名称字符串
+            JsonElement valElem = json.get("value");
+            DyeColor newColor = null;
+            if (valElem.isJsonPrimitive()) {
+                if (valElem.getAsJsonPrimitive().isNumber()) {
+                    int id = valElem.getAsInt();
+                    newColor = DyeColor.byId(id);
+                } else if (valElem.getAsJsonPrimitive().isString()) {
+                    String name = valElem.getAsString();
+                    newColor = DyeColor.byName(name, null);
+                }
+            }
+            if (newColor == null) return;
+            // 直接设置 BASE_COLOR
+            stack.set(DataComponents.BASE_COLOR, newColor);
+        });
+
+        // ========== 最大堆叠数 ==========
+        register("max_stack_size", (ctx, json, meta, provider) -> {
+            ItemStack stack = meta.input();
+            if (stack.isEmpty()) return;
+            String op = json.has("op") ? json.get("op").getAsString() : "=";
+            int value = json.get("value").getAsInt();
+            int old = stack.getOrDefault(DataComponents.MAX_STACK_SIZE, stack.getItem().getMaxStackSize(stack));
+            int newVal = (int) MathModifyTool.number(op, value, old);
+            // 限制 1~99（原版限制）
+            newVal = Math.max(1, Math.min(99, newVal));
+            stack.set(DataComponents.MAX_STACK_SIZE, newVal);
+        });
+
+        // ========== 铁砧修复花费 ==========
+        register("repair_cost", (ctx, json, meta, provider) -> {
+            ItemStack stack = meta.input();
+            if (stack.isEmpty()) return;
+            String op = json.has("op") ? json.get("op").getAsString() : "=";
+            int value = json.get("value").getAsInt();
+            int oldVal = stack.getOrDefault(DataComponents.REPAIR_COST, 0);
+            int newVal = (int) MathModifyTool.number(op, value, oldVal);
+            // 限制最小值 0（不允许负数）
+            newVal = Math.max(0, newVal);
+            stack.set(DataComponents.REPAIR_COST, newVal);
+        });
+
     }
 
     // ========== 公共注册接口 ==========
@@ -299,7 +472,8 @@ public class HandleRegistry {
         return REGISTRY.get(type);
     }
 
-    public static void init(){}
+    public static void init() {
+    }
     // ========== 内部辅助方法 ==========
 
     private static void applyAttribute(Context ctx, JsonObject json, MetaData meta, Holder<Attribute> attribute) {
@@ -443,4 +617,5 @@ public class HandleRegistry {
         }
         current.remove(keys[keys.length - 1]);
     }
+
 }
