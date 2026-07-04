@@ -122,7 +122,7 @@ public class HandleRegistry {
             ItemStack stack = meta.input();
             if (stack.isEmpty()) return;
             String op = json.get("op").getAsString();
-            int value = json.get("wrapper").getAsInt();
+            int value = json.get("value").getAsInt();
             int old = stack.getOrDefault(DataComponents.DAMAGE, 0);
             int newVal = (int) MathModifyTool.number(op, value, old);
             stack.set(DataComponents.DAMAGE, Math.max(0, newVal));
@@ -132,7 +132,7 @@ public class HandleRegistry {
             ItemStack stack = meta.input();
             if (stack.isEmpty()) return;
             String op = json.get("op").getAsString();
-            int value = json.get("wrapper").getAsInt();
+            int value = json.get("value").getAsInt();
             int old = stack.getOrDefault(DataComponents.MAX_DAMAGE, stack.getMaxDamage());
             int newVal = (int) MathModifyTool.number(op, value, old);
             stack.set(DataComponents.MAX_DAMAGE, Math.max(1, newVal));
@@ -142,7 +142,7 @@ public class HandleRegistry {
             ItemStack stack = meta.input();
             if (stack.isEmpty()) return;
             String op = json.get("op").getAsString();
-            int value = json.get("wrapper").getAsInt();
+            int value = json.get("value").getAsInt();
             int old = stack.getCount();
             int newVal = (int) MathModifyTool.number(op, value, old);
             int max = stack.getItem().getMaxStackSize(stack);
@@ -214,7 +214,7 @@ public class HandleRegistry {
             if (stack.isEmpty()) return;
             String key = json.get("key").getAsString();
             String op = json.get("op").getAsString();
-            JsonElement valueElem = json.get("wrapper");
+            JsonElement valueElem = json.get("value");
 
             CustomData data = stack.getOrDefault(DataComponents.CUSTOM_DATA, CustomData.EMPTY);
             CompoundTag tag = data.copyTag();
@@ -266,7 +266,7 @@ public class HandleRegistry {
             if (stack.isEmpty()) return;
             String key = json.get("key").getAsString();
             String op = json.get("op").getAsString();
-            JsonElement valueElem = json.get("wrapper");
+            JsonElement valueElem = json.get("value");
 
             // 获取或创建 BLOCK_ENTITY_DATA
             CustomData data = stack.getOrDefault(DataComponents.BLOCK_ENTITY_DATA, CustomData.EMPTY);
@@ -310,7 +310,7 @@ public class HandleRegistry {
         if (stack.isEmpty()) return;
         String slot = json.has("slot") ? json.get("slot").getAsString() : "auto";
         String op = json.has("op") ? json.get("op").getAsString() : "auto";
-        double value = json.get("wrapper").getAsDouble();
+        double value = json.get("value").getAsDouble();
 
         EquipmentSlotGroup slotGroup = parseSlot(slot, stack);
         double oldAmount = 0.0;

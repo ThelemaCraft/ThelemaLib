@@ -23,7 +23,7 @@ import java.util.*;
 
 @EventBusSubscriber
 public class DamageQueue extends SavedData {
-    private static final String DATA_NAME = ResourceLocation.fromNamespaceAndPath(ThelemaLib.MOD_ID, "damage_queue").toString();
+    private static final String DATA_NAME = "thelema_damage_queue";
     private static final String DEFAULT_IDENTIFIER = "undefined";
 
     // 主队列：每个实体待处理的伤害列表（先进先出）
