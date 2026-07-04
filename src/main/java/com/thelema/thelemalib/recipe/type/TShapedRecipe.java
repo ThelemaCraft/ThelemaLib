@@ -4,14 +4,22 @@ import com.google.gson.JsonArray;
 import com.thelema.thelemalib.recipe.TRecipeSerializers;
 import com.thelema.thelemalib.recipe.tool.Context;
 import com.thelema.thelemalib.recipe.tool.OutputHandler;
+import net.minecraft.core.Holder;
 import net.minecraft.core.HolderLookup;
 import net.minecraft.core.NonNullList;
+import net.minecraft.core.component.DataComponents;
+import net.minecraft.core.registries.Registries;
+import net.minecraft.resources.ResourceKey;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.crafting.*;
+import net.minecraft.world.item.enchantment.Enchantment;
+import net.minecraft.world.item.enchantment.ItemEnchantments;
 import net.minecraft.world.level.Level;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 
 public record TShapedRecipe(
         ShapedRecipePattern pattern,
@@ -30,7 +38,7 @@ public record TShapedRecipe(
     }
 
     @Override
-    public ItemStack assemble(CraftingInput input, HolderLookup.Provider registries) {
+    public ItemStack assemble(CraftingInput input, HolderLookup.Provider provider) {
         ItemStack result = template.copy();
         List<ItemStack> nonEmptyInputs = new ArrayList<>();
         for (ItemStack stack : input.items()) {
@@ -39,7 +47,7 @@ public record TShapedRecipe(
 
         Context ctx = new Context(nonEmptyInputs, new ArrayList<>(List.of(result)));
 
-        OutputHandler.handle(ctx, handle);
+        OutputHandler.handle(ctx, handle, provider);
         return ctx.output.get(0);
     }
 

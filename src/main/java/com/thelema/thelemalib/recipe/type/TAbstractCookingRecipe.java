@@ -22,13 +22,13 @@ public abstract class TAbstractCookingRecipe extends AbstractCookingRecipe {
     }
 
     @Override
-    public @NotNull ItemStack assemble(SingleRecipeInput input, HolderLookup.Provider registries) {
-        ItemStack result = super.assemble(input, registries);
+    public @NotNull ItemStack assemble(SingleRecipeInput input, HolderLookup.Provider provider) {
+        ItemStack result = super.assemble(input, provider);
         List<ItemStack> inputs = new ArrayList<>();
         if (!input.item().isEmpty()) inputs.add(input.item());
 
         Context ctx = new Context(inputs, new ArrayList<>(List.of(result)));
-        OutputHandler.handle(ctx, handle);
+        OutputHandler.handle(ctx, handle, provider);
 
         return ctx.output.get(0);
     }

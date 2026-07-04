@@ -1,26 +1,33 @@
 package com.thelema.thelemalib.recipe.registry;
 
-import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.thelema.thelemalib.recipe.tool.MathModifyTool;
+import net.minecraft.core.Holder;
+import net.minecraft.core.HolderLookup;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.core.registries.Registries;
 import net.minecraft.nbt.*;
+import net.minecraft.resources.ResourceKey;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.tags.TagKey;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.component.CustomData;
+import net.minecraft.world.item.enchantment.Enchantment;
+import net.minecraft.world.item.enchantment.ItemEnchantments;
 
-import java.util.*;
-import java.util.function.BiPredicate;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Random;
 
 public class ConditionRegistry {
-    private static final Map<String, BiPredicate<ItemStack, JsonObject>> REGISTRY = new HashMap<>();
+    private static final Map<String, ConditionPredicate> REGISTRY = new HashMap<>();
 
     static {
-        register("item_id", (stack, json) -> {
+        register("item_id", (stack, json, provider) -> {
             String item = json.get("item").getAsString();
             boolean reverse = json.has("reverse") && json.get("reverse").getAsBoolean();
             ResourceLocation id = ResourceLocation.tryParse(item);
@@ -29,7 +36,7 @@ public class ConditionRegistry {
             return reverse != matches;
         });
 
-        register("damage", (stack, json) -> {
+        register("damage", (stack, json, provider) -> {
             String op = json.get("op").getAsString();
             int value = json.get("value").getAsInt();
             boolean reverse = json.has("reverse") && json.get("reverse").getAsBoolean();
@@ -38,7 +45,7 @@ public class ConditionRegistry {
             return reverse != result;
         });
 
-        register("max_damage", (stack, json) -> {
+        register("max_damage", (stack, json, provider) -> {
             String op = json.get("op").getAsString();
             int value = json.get("value").getAsInt();
             boolean reverse = json.has("reverse") && json.get("reverse").getAsBoolean();
@@ -47,7 +54,7 @@ public class ConditionRegistry {
             return reverse != result;
         });
 
-        register("custom_data", (stack, json) -> {
+        register("custom_data", (stack, json, provider) -> {
             String key = json.get("key").getAsString();
             String op = json.get("op").getAsString();
             JsonElement valueElem = json.get("value");
@@ -68,7 +75,7 @@ public class ConditionRegistry {
             return reverse != result;
         });
 
-        register("tag", (stack, json) -> {
+        register("tag", (stack, json, provider) -> {
             String tag = json.get("tag").getAsString();
             boolean reverse = json.has("reverse") && json.get("reverse").getAsBoolean();
             ResourceLocation location = ResourceLocation.tryParse(tag);
@@ -78,14 +85,14 @@ public class ConditionRegistry {
             return reverse != matches;
         });
 
-        register("random", (stack, json) -> {
+        register("random", (stack, json, provider) -> {
             double chance = json.get("chance").getAsDouble();
             boolean reverse = json.has("reverse") && json.get("reverse").getAsBoolean();
             boolean result = new Random().nextDouble() < chance;
             return reverse != result;
         });
 
-        register("block_entity_data", (stack, json) -> {
+        register("block_entity_data", (stack, json, provider) -> {
             String key = json.get("key").getAsString();
             String op = json.get("op").getAsString();
             JsonElement valueElem = json.get("value");
@@ -106,6 +113,28 @@ public class ConditionRegistry {
 
             Tag nbtTag = current.get(lastKey);
             boolean result = compareNbt(nbtTag, op, valueElem);
+            return reverse != result;
+        });
+
+        register("has_enchant", (stack, json, provider) -> {
+            String enchantmentId = json.get("enchantment").getAsString();
+            String op = json.has("op") ? json.get("op").getAsString() : ">=";
+            int value = json.has("value") ? json.get("value").getAsInt() : 1;
+            boolean reverse = json.has("reverse") && json.get("reverse").getAsBoolean();
+
+            ResourceLocation id = ResourceLocation.tryParse(enchantmentId);
+            if (id == null) return reverse;
+
+            // 通过 provider 获取附魔注册表
+            Optional<Holder.Reference<Enchantment>> holderOpt = provider.lookup(Registries.ENCHANTMENT)
+                    .flatMap(lookup -> lookup.get(ResourceKey.create(Registries.ENCHANTMENT, id)));
+            if (holderOpt.isEmpty()) return reverse;
+            Holder<Enchantment> holder = holderOpt.get();
+
+            ItemEnchantments enchantments = stack.getOrDefault(DataComponents.ENCHANTMENTS, ItemEnchantments.EMPTY);
+            int level = enchantments.getLevel(holder);
+
+            boolean result = MathModifyTool.compare(op, level, value);
             return reverse != result;
         });
     }
@@ -150,13 +179,18 @@ public class ConditionRegistry {
         return false;
     }
 
-    public static void register(String type, BiPredicate<ItemStack, JsonObject> predicate) {
-        REGISTRY.put(type, predicate);
+    public static void register(String type, ConditionPredicate conditionPredicate) {
+        REGISTRY.put(type, conditionPredicate);
     }
 
-    public static BiPredicate<ItemStack, JsonObject> getPredicate(String type) {
+    public static ConditionPredicate getPredicate(String type) {
         return REGISTRY.get(type);
     }
 
-    public static void init(){}
+    public static void init() {}
+
+    @FunctionalInterface
+    public interface ConditionPredicate {
+        boolean test(ItemStack stack, JsonObject json, HolderLookup.Provider provider);
+    }
 }

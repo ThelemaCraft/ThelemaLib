@@ -5,6 +5,7 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.thelema.thelemalib.ThelemaLib;
 import com.thelema.thelemalib.recipe.registry.HandleRegistry;
+import net.minecraft.core.HolderLookup;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
@@ -24,29 +25,54 @@ public class OutputHandler {
      */
     @FunctionalInterface
     public interface HandleConsumer {
-        void accept(Context ctx, JsonObject json, MetaData meta);
+        void accept(Context ctx, JsonObject json, MetaData meta, HolderLookup.Provider provider);
     }
 
     /**
      * 不可变元数据：每个执行项的输入信息
      */
-    public record MetaData(ItemStack input, String range, @Nullable ItemStack inputNewItem) {}
+    public record MetaData(ItemStack input, String range, @Nullable ItemStack inputNewItem, boolean foundInput) {}
 
     /**
      * 执行操作列表
      */
-    public static void handle(Context context, JsonArray operations) {
+    public static void handle(Context context, JsonArray operations, HolderLookup.Provider provider) {
         for (JsonElement elem : operations) {
             JsonObject op = elem.getAsJsonObject();
-            MetaData meta = initMeta(context, op);
+            MetaData meta = initMeta(context, op, provider);
             String type = op.get("type").getAsString();
 
             HandleConsumer handler = HandleRegistry.getHandle(type);
             if (handler != null) {
-                handler.accept(context, op, meta);
+                handler.accept(context, op, meta, provider);
             }else {
                 ThelemaLib.LOGGER.error("OutputHandler.handle：handler == null!");
             }
+        }
+        cleanEmptyStacks(context);
+    }
+
+    // 清理异常输出
+    private static void cleanEmptyStacks(Context ctx) {
+        // 清理 inputs
+        for (int i = 0; i < ctx.inputs.size(); i++) {
+            ItemStack stack = ctx.inputs.get(i);
+            if (!stack.isEmpty() && stack.getCount() <= 0) {
+                ctx.inputs.set(i, ItemStack.EMPTY);
+            }
+        }
+
+        // 清理 outputs
+        for (int i = 0; i < ctx.output.size(); i++) {
+            ItemStack stack = ctx.output.get(i);
+            if (!stack.isEmpty() && stack.getCount() <= 0) {
+                ctx.output.set(i, ItemStack.EMPTY);
+            }
+        }
+
+        // 清理 current
+        if (ctx.current != null && !ctx.current.isEmpty() && ctx.current.getCount() <= 0) {
+            ctx.current = ItemStack.EMPTY;
         }
     }
 
@@ -54,10 +80,11 @@ public class OutputHandler {
      * 初始化元数据：从 JsonObject 中解析 input / input_new_item / range
      * 优先级：input_new_item > input > current
      */
-    private static MetaData initMeta(Context ctx, JsonObject op) {
+    private static MetaData initMeta(Context ctx, JsonObject op, HolderLookup.Provider provider) {
         String range = op.has("range") ? op.get("range").getAsString() : "inputs";
         ItemStack input = null;
         ItemStack inputNewItem = null;
+        boolean foundInput = false;
 
         // 1. input_new_item 最高优先级
         if (op.has("input_new_item")) {
@@ -73,9 +100,10 @@ public class OutputHandler {
         // 2. input 条件搜索
         else if (op.has("input")) {
             List<ItemStack> pool = getPool(ctx, range);
-            List<ItemStack> candidates = Matcher.found(pool, op.get("input"));
+            List<ItemStack> candidates = Matcher.found(pool, op.get("input"), provider);
             if (!candidates.isEmpty()) {
                 input = candidates.get(RANDOM.nextInt(candidates.size()));
+                foundInput = true;
             }
         }
 
@@ -84,7 +112,7 @@ public class OutputHandler {
             input = ctx.current;
         }
 
-        return new MetaData(input, range, inputNewItem);
+        return new MetaData(input, range, inputNewItem, foundInput);
     }
 
     /**

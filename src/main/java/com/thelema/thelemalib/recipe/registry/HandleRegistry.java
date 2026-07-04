@@ -10,11 +10,14 @@ import com.thelema.thelemalib.recipe.tool.OutputHandler.MetaData;
 import com.thelema.thelemalib.recipe.tool.Matcher;
 import com.thelema.thelemalib.recipe.tool.MathModifyTool;
 import net.minecraft.core.Holder;
+import net.minecraft.core.HolderLookup;
 import net.minecraft.core.component.DataComponentType;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.core.registries.Registries;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
+import net.minecraft.resources.ResourceKey;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.EquipmentSlotGroup;
@@ -26,6 +29,8 @@ import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.component.CustomData;
 import net.minecraft.world.item.component.ItemAttributeModifiers;
+import net.minecraft.world.item.enchantment.Enchantment;
+import net.minecraft.world.item.enchantment.ItemEnchantments;
 
 import java.util.*;
 
@@ -35,21 +40,15 @@ public class HandleRegistry {
     static {
         // ========== 指针与复制 ==========
 
-        register("set_current", (ctx, json, meta) -> {
-            // 仅修改 ctx.current，不影响输出列表
-            ctx.current = meta.input();
-        });
+        register("set_current", (ctx, json, meta, provider) -> ctx.current = meta.input());
 
-        register("copy_to_set_current", (ctx, json, meta) -> {
-            // 将输入物品的副本设为 current，原物品不受影响
-            ctx.current = meta.input().copy();
-        });
+        register("copy_to_set_current", (ctx, json, meta, provider) -> ctx.current = meta.input().copy());
 
-        register("set_result", (ctx, json, meta) -> ctx.output.set(0, meta.input()));
+        register("set_result", (ctx, json, meta, provider) -> ctx.output.set(0, meta.input()));
 
-        register("copy_to_set_result", (ctx, json, meta) -> ctx.output.set(0, meta.input().copy()));
+        register("copy_to_set_result", (ctx, json, meta, provider) -> ctx.output.set(0, meta.input().copy()));
 
-        register("add_result", (ctx, json, meta) -> {
+        register("add_result", (ctx, json, meta, provider) -> {
             // 将输入副本插入输出列表
             ItemStack copy = meta.input();
             String posStr = json.has("pos") ? json.get("pos").getAsString() : "head";
@@ -63,7 +62,7 @@ public class HandleRegistry {
             ctx.output.add(pos, copy);
         });
 
-        register("copy_to_add_result", (ctx, json, meta) -> {
+        register("copy_to_add_result", (ctx, json, meta, provider) -> {
             // 将输入副本插入输出列表
             ItemStack copy = meta.input().copy();
             String posStr = json.has("pos") ? json.get("pos").getAsString() : "head";
@@ -79,46 +78,17 @@ public class HandleRegistry {
 
         // ========== 分支控制 ==========
 
-        register("branch", (ctx, json, meta) -> {
-            // 使用 meta.range() 确定搜索池
-            List<ItemStack> pool = OutputHandler.getPool(ctx, meta.range());
-            boolean matched = Matcher.match(pool, json.get("condition"));
-            if (matched && json.has("true")) {
-                OutputHandler.handle(ctx, json.getAsJsonArray("true"));
-            } else if (!matched && json.has("false")) {
-                OutputHandler.handle(ctx, json.getAsJsonArray("false"));
-            }
-        });
-
-        register("branch_sync", (ctx, json, meta) -> {
-            List<ItemStack> pool = OutputHandler.getPool(ctx, meta.range());
-            List<ItemStack> found = Matcher.found(pool, json.get("condition"));
-
-            if (!found.isEmpty() && json.has("true")) {
-                // 随机选一个，复制整个堆叠
-                ctx.current = found.get(new Random().nextInt(found.size()));
-                OutputHandler.handle(ctx, json.getAsJsonArray("true"));
-            } else if (found.isEmpty() && json.has("false")) {
-                OutputHandler.handle(ctx, json.getAsJsonArray("false"));
-            }
-        });
-
-        register("branch_sync_with_copy", (ctx, json, meta) -> {
-            List<ItemStack> pool = OutputHandler.getPool(ctx, meta.range());
-            List<ItemStack> found = Matcher.found(pool, json.get("condition"));
-
-            if (!found.isEmpty() && json.has("true")) {
-                // 随机选一个，复制整个堆叠
-                ctx.current = found.get(new Random().nextInt(found.size())).copy();
-                OutputHandler.handle(ctx, json.getAsJsonArray("true"));
-            } else if (found.isEmpty() && json.has("false")) {
-                OutputHandler.handle(ctx, json.getAsJsonArray("false"));
+        register("branch", (ctx, json, meta, provider) -> {
+            if (meta.foundInput() && json.has("true")) {
+                OutputHandler.handle(ctx, json.getAsJsonArray("true"), provider);
+            } else if (!meta.foundInput() && json.has("false")) {
+                OutputHandler.handle(ctx, json.getAsJsonArray("false"), provider);
             }
         });
 
         // ========== 基础数值修改 ==========
 
-        register("modify_damage", (ctx, json, meta) -> {
+        register("modify_damage", (ctx, json, meta, provider) -> {
             ItemStack stack = meta.input();
             if (stack.isEmpty()) return;
             String op = json.get("op").getAsString();
@@ -128,7 +98,7 @@ public class HandleRegistry {
             stack.set(DataComponents.DAMAGE, Math.max(0, newVal));
         });
 
-        register("modify_max_damage", (ctx, json, meta) -> {
+        register("modify_max_damage", (ctx, json, meta, provider) -> {
             ItemStack stack = meta.input();
             if (stack.isEmpty()) return;
             String op = json.get("op").getAsString();
@@ -138,30 +108,29 @@ public class HandleRegistry {
             stack.set(DataComponents.MAX_DAMAGE, Math.max(1, newVal));
         });
 
-        register("modify_count", (ctx, json, meta) -> {
+        register("modify_count", (ctx, json, meta, provider) -> {
             ItemStack stack = meta.input();
             if (stack.isEmpty()) return;
             String op = json.get("op").getAsString();
             int value = json.get("value").getAsInt();
             int old = stack.getCount();
             int newVal = (int) MathModifyTool.number(op, value, old);
-            int max = stack.getItem().getMaxStackSize(stack);
-            stack.setCount(Math.clamp(newVal, 1, max));
+            stack.setCount(newVal);
         });
 
         // ========== 属性修改 ==========
 
-        register("modify_armor", (ctx, json, meta) -> applyAttribute(ctx, json, meta, Attributes.ARMOR));
-        register("modify_armor_toughness", (ctx, json, meta) -> applyAttribute(ctx, json, meta, Attributes.ARMOR_TOUGHNESS));
-        register("modify_attack_speed", (ctx, json, meta) -> applyAttribute(ctx, json, meta, Attributes.ATTACK_SPEED));
-        register("modify_attack_damage", (ctx, json, meta) -> applyAttribute(ctx, json, meta, Attributes.ATTACK_DAMAGE));
+        register("modify_armor", (ctx, json, meta, provider) -> applyAttribute(ctx, json, meta, Attributes.ARMOR));
+        register("modify_armor_toughness", (ctx, json, meta, provider) -> applyAttribute(ctx, json, meta, Attributes.ARMOR_TOUGHNESS));
+        register("modify_attack_speed", (ctx, json, meta, provider) -> applyAttribute(ctx, json, meta, Attributes.ATTACK_SPEED));
+        register("modify_attack_damage", (ctx, json, meta, provider) -> applyAttribute(ctx, json, meta, Attributes.ATTACK_DAMAGE));
 
         // ========== 组件操作 ==========
 
-        register("copy_data_component", (ctx, json, meta) -> {
+        register("copy_data_component", (ctx, json, meta, provider) -> {
             // source 与 target 分别解析（若未提供则使用当前 meta.input）
-            ItemStack source = resolveSourceOrTarget(ctx, json, "source", meta);
-            ItemStack target = resolveSourceOrTarget(ctx, json, "target", meta);
+            ItemStack source = resolveSourceOrTarget(ctx, json, "source", meta, provider);
+            ItemStack target = resolveSourceOrTarget(ctx, json, "target", meta, provider);
             if (source.isEmpty() || target.isEmpty()) return;
 
             boolean copyAll = json.has("copy_all") && json.get("copy_all").getAsBoolean();
@@ -182,7 +151,7 @@ public class HandleRegistry {
             }
         });
 
-        register("remove_data_component", (ctx, json, meta) -> {
+        register("remove_data_component", (ctx, json, meta, provider) -> {
             ItemStack stack = meta.input();
             if (stack.isEmpty()) return;
             boolean removeAll = json.has("remove_all") && json.get("remove_all").getAsBoolean();
@@ -209,7 +178,7 @@ public class HandleRegistry {
 
         // ========== 自定义 NBT ==========
 
-        register("modify_custom_data", (ctx, json, meta) -> {
+        register("modify_custom_data", (ctx, json, meta, provider) -> {
             ItemStack stack = meta.input();
             if (stack.isEmpty()) return;
             String key = json.get("key").getAsString();
@@ -222,7 +191,7 @@ public class HandleRegistry {
             stack.set(DataComponents.CUSTOM_DATA, CustomData.of(tag));
         });
 
-        register("remove_custom_data", (ctx, json, meta) -> {
+        register("remove_custom_data", (ctx, json, meta, provider) -> {
             ItemStack stack = meta.input();
             if (stack.isEmpty()) return;
             JsonElement keyElem = json.get("key");
@@ -238,30 +207,8 @@ public class HandleRegistry {
             stack.set(DataComponents.CUSTOM_DATA, CustomData.of(tag));
         });
 
-        // ========== 展示与反馈 ==========
-
-        register("rename", (ctx, json, meta) -> {
-            ItemStack stack = meta.input();
-            if (stack.isEmpty()) return;
-            String text = json.get("text").getAsString();
-            stack.set(DataComponents.CUSTOM_NAME, Component.literal(text));
-        });
-
-        register("sound", (ctx, json, meta) -> {
-            ItemStack stack = meta.input();
-            if (stack.isEmpty()) return;
-            CustomData data = stack.getOrDefault(DataComponents.CUSTOM_DATA, CustomData.EMPTY);
-            CompoundTag tag = data.copyTag();
-            CompoundTag soundTag = new CompoundTag();
-            soundTag.putString("sound_id", json.get("sound_id").getAsString());
-            soundTag.putFloat("volume", json.has("volume") ? json.get("volume").getAsFloat() : 1.0F);
-            soundTag.putFloat("pitch", json.has("pitch") ? json.get("pitch").getAsFloat() : 1.0F);
-            tag.put("sound", soundTag);
-            stack.set(DataComponents.CUSTOM_DATA, CustomData.of(tag));
-        });
-
         // ========== 方块实体数据(放置和破坏不丢失) ==========
-        register("modify_block_entity_data", (ctx, json, meta) -> {
+        register("modify_block_entity_data", (ctx, json, meta, provider) -> {
             ItemStack stack = meta.input();
             if (stack.isEmpty()) return;
             String key = json.get("key").getAsString();
@@ -275,7 +222,7 @@ public class HandleRegistry {
             stack.set(DataComponents.BLOCK_ENTITY_DATA, CustomData.of(tag));
         });
 
-        register("remove_block_entity_data", (ctx, json, meta) -> {
+        register("remove_block_entity_data", (ctx, json, meta, provider) -> {
             ItemStack stack = meta.input();
             if (stack.isEmpty()) return;
             JsonElement keyElem = json.get("key");
@@ -290,6 +237,56 @@ public class HandleRegistry {
                 removeNbtPath(tag, keyElem.getAsString());
             }
             stack.set(DataComponents.BLOCK_ENTITY_DATA, CustomData.of(tag));
+        });
+
+        // ========== 命名 ==========
+
+        register("rename", (ctx, json, meta, provider) -> {
+            ItemStack stack = meta.input();
+            if (stack.isEmpty()) return;
+            String text = json.get("text").getAsString();
+            stack.set(DataComponents.CUSTOM_NAME, Component.literal(text));
+        });
+
+        // ========== 音效 ==========
+
+        register("sound", (ctx, json, meta, provider) -> {
+            ItemStack stack = meta.input();
+            if (stack.isEmpty()) return;
+            CustomData data = stack.getOrDefault(DataComponents.CUSTOM_DATA, CustomData.EMPTY);
+            CompoundTag tag = data.copyTag();
+            CompoundTag soundTag = new CompoundTag();
+            soundTag.putString("sound_id", json.get("sound_id").getAsString());
+            soundTag.putFloat("volume", json.has("volume") ? json.get("volume").getAsFloat() : 1.0F);
+            soundTag.putFloat("pitch", json.has("pitch") ? json.get("pitch").getAsFloat() : 1.0F);
+            tag.put("sound", soundTag);
+            stack.set(DataComponents.CUSTOM_DATA, CustomData.of(tag));
+        });
+
+        // ========== 附魔 ==========
+        register("enchant", (ctx, json, meta, provider) -> {
+            ItemStack stack = meta.input();
+            if (stack.isEmpty()) return;
+
+            String enchantmentId = json.get("enchantment").getAsString();
+            String op = json.has("op") ? json.get("op").getAsString() : "=";
+            int value = json.has("value") ? json.get("value").getAsInt() : 1;
+
+            ResourceLocation id = ResourceLocation.tryParse(enchantmentId);
+            if (id == null) return;
+
+            Optional<Holder.Reference<Enchantment>> holderOpt = provider.lookup(Registries.ENCHANTMENT)
+                    .flatMap(lookup -> lookup.get(ResourceKey.create(Registries.ENCHANTMENT, id)));
+            if (holderOpt.isEmpty()) return;
+            Holder<Enchantment> holder = holderOpt.get();
+
+            ItemEnchantments oldEnchants = stack.getOrDefault(DataComponents.ENCHANTMENTS, ItemEnchantments.EMPTY);
+            int currentLevel = oldEnchants.getLevel(holder);
+            int newLevel = (int) Math.round(MathModifyTool.number(op, value, currentLevel));
+
+            ItemEnchantments.Mutable mutable = new ItemEnchantments.Mutable(oldEnchants);
+            mutable.set(holder, newLevel);
+            stack.set(DataComponents.ENCHANTMENTS, mutable.toImmutable());
         });
     }
 
@@ -370,14 +367,14 @@ public class HandleRegistry {
         };
     }
 
-    private static ItemStack resolveSourceOrTarget(Context ctx, JsonObject json, String key, MetaData meta) {
+    private static ItemStack resolveSourceOrTarget(Context ctx, JsonObject json, String key, MetaData meta, HolderLookup.Provider provider) {
         if (json.has(key)) {
             // 重新初始化一次元数据（临时）
             JsonObject temp = json.getAsJsonObject(key);
             // 简单支持直接内联的条件或 input_new_item
             if (temp.has("input")) {
                 List<ItemStack> pool = OutputHandler.getPool(ctx, meta.range());
-                List<ItemStack> candidates = Matcher.found(pool, temp.get("input"));
+                List<ItemStack> candidates = Matcher.found(pool, temp.get("input"), provider);
                 if (!candidates.isEmpty()) return candidates.get(new Random().nextInt(candidates.size()));
             } else if (temp.has("input_new_item")) {
                 JsonObject newItem = temp.getAsJsonObject("input_new_item");

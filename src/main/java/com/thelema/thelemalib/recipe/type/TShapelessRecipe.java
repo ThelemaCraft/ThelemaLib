@@ -1,7 +1,6 @@
 package com.thelema.thelemalib.recipe.type;
 
 import com.google.gson.JsonArray;
-import com.thelema.thelemalib.ThelemaLib;
 import com.thelema.thelemalib.recipe.TRecipeSerializers;
 import com.thelema.thelemalib.recipe.tool.Context;
 import com.thelema.thelemalib.recipe.tool.OutputHandler;
@@ -49,13 +48,13 @@ public record TShapelessRecipe(
     }
 
     @Override
-    public ItemStack assemble(CraftingInput input, HolderLookup.Provider registries) {
+    public ItemStack assemble(CraftingInput input, HolderLookup.Provider provider) {
         ItemStack result = template.copy();
         List<ItemStack> inputs = input.items().stream().filter(s -> !s.isEmpty()).toList();
 
         Context ctx = new Context(inputs, new ArrayList<>(List.of(result)));
 
-        OutputHandler.handle(ctx, handle);
+        OutputHandler.handle(ctx, handle, provider);
         return ctx.output.get(0);
     }
 
