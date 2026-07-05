@@ -15,25 +15,15 @@ public class AreaManager {
     static final String KEY = "thelemalib_area_manager";
 
     private AreaManager() {}
-    /**添加一个区域，指定类型*/
+
     public static boolean add(ServerLevel level, String type, String name, BlockPos a, BlockPos b) {
         return add(level, type, name, posToAABB(a, b));
     }
 
-    /**添加一个区域，指定类型, 传入AABB*/
     public static boolean add(ServerLevel level, String type, String name, AABB aabb) {
-        AreaRegistry.AreaCreator creator = AreaRegistry.REGISTRY.get(type);
-        if (creator == null) return false;
-        Area area = creator.create(name, aabb);
+        Area area = AreaRegistry.create(type, name, aabb);
         NeoForge.EVENT_BUS.register(area);
         map(level).put(name, area);
-        return true;
-    }
-
-    /**添加一个区域，不使用类型，删除使用 area.name() 做 key*/
-    public static boolean add(ServerLevel level, Area area){
-        NeoForge.EVENT_BUS.register(area);
-        map(level).put(area.name(), area);
         return true;
     }
 
@@ -45,9 +35,8 @@ public class AreaManager {
         return true;
     }
 
-    public static @Nullable Area get(ServerLevel level, String name){
-        LevelMap<String, Area> map = map(level);
-        return map.get(name);
+    public static @Nullable Area get(ServerLevel level, String name) {
+        return map(level).get(name);
     }
 
     public static AABB posToAABB(BlockPos a, BlockPos b) {

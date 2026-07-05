@@ -100,14 +100,28 @@ neoForge.ideSyncTask generateModMetadata
 
 publishing {
     publications {
-        register('mavenJava', MavenPublication) {
-            from components.java
-        }
+//        // 只需要一个 publications 块
+//        mavenJava(MavenPublication) {
+//            groupId = 'com.yourname'
+//            artifactId = 'thelemalib'
+//            version = '1.0.0'
+//            from components.java
+//        }
     }
     repositories {
+        // 只需要一个 repositories 块，里面配置多个仓库
         maven {
-            url "file://${project.projectDir}/repo"
+            name = "local"
+            url = "file://${project.projectDir}/repo"
         }
+//        maven {
+//            name = "GitHubPackages"
+//            url = "https://maven.pkg.github.com/ThelemaCraft/ThelemaLib"
+//            credentials {
+//                username = System.getenv("GITHUB_ACTOR")
+//                password = System.getenv("GITHUB_TOKEN")
+//            }
+//        }
     }
 }
 

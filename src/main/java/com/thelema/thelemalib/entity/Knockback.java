@@ -1,4 +1,4 @@
-package com.thelema.thelemalib.level;
+package com.thelema.thelemalib.entity;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;

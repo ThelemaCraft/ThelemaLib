@@ -11,12 +11,14 @@ import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.Tag;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.neoforge.items.IItemHandler;
 import net.neoforged.neoforge.items.ItemStackHandler;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -140,18 +142,18 @@ public final class ValueRegistry {
             @Override
             public Tag toTag(Area area, HolderLookup.Provider provider) {
                 CompoundTag tag = new CompoundTag();
-                tag.putString("typeId", area.type());
-                tag.putString("name", area.name());
+                tag.putString("type", area.type);
+                tag.putString("name", area.name);
                 // 从 AABB 提取两个对角点（整数化）
                 BlockPos min = new BlockPos(
-                        (int) Math.floor(area.aabb().minX),
-                        (int) Math.floor(area.aabb().minY),
-                        (int) Math.floor(area.aabb().minZ)
+                        (int) Math.floor(area.aabb.minX),
+                        (int) Math.floor(area.aabb.minY),
+                        (int) Math.floor(area.aabb.minZ)
                 );
                 BlockPos max = new BlockPos(
-                        (int) Math.ceil(area.aabb().maxX) - 1,
-                        (int) Math.ceil(area.aabb().maxY) - 1,
-                        (int) Math.ceil(area.aabb().maxZ) - 1
+                        (int) Math.ceil(area.aabb.maxX) - 1,
+                        (int) Math.ceil(area.aabb.maxY) - 1,
+                        (int) Math.ceil(area.aabb.maxZ) - 1
                 );
                 tag.put("min", MapConverter.encodeValue(min, provider));
                 tag.put("max", MapConverter.encodeValue(max, provider));
@@ -161,11 +163,11 @@ public final class ValueRegistry {
             @Override
             public Area fromTag(Tag t, HolderLookup.Provider provider) {
                 CompoundTag ct = (CompoundTag) t;
-                String typeId = ct.getString("typeId");
+                String type = ct.getString("type");
                 String name = ct.getString("name");
                 BlockPos min = (BlockPos) MapConverter.decodeValue(ct.get("min"), "Bpos", provider);
                 BlockPos max = (BlockPos) MapConverter.decodeValue(ct.get("max"), "Bpos", provider);
-                return AreaRegistry.create(typeId, name, AreaManager.posToAABB(min, max));
+                return AreaRegistry.create(type, name, AreaManager.posToAABB(min, max));
             }
         });
     }

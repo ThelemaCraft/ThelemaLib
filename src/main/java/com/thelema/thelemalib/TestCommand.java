@@ -3,7 +3,6 @@ package com.thelema.thelemalib;
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.context.CommandContext;
-import com.thelema.thelemalib.area.Area;
 import com.thelema.thelemalib.area.AreaManager;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;

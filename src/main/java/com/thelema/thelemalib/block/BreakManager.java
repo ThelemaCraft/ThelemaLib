@@ -9,6 +9,7 @@ import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.state.BlockState;
+import org.jetbrains.annotations.Nullable;
 
 public class BreakManager {
 
@@ -25,51 +26,38 @@ public class BreakManager {
         return new BreakManager(LevelMap.common(level, KEY));
     }
 
-    /**
-     * 玩家/实体挖掘方块，每次增加破坏值
-     */
-    public void dig(BlockPos pos, ItemStack tool, LivingEntity breaker) {
+    public boolean dig(BlockPos pos, @Nullable ItemStack tool, @Nullable LivingEntity breaker) {
         ServerLevel level = map.level;
         BlockState state = level.getBlockState(pos);
-        int damage = (int) (tool.getDestroySpeed(state) * 6);  // 铁镐→30
 
-        boolean needSync = false;
+        // 计算挖掘速度：工具为空时使用空手速度（1.0f）
+        float speed = (tool != null) ? tool.getDestroySpeed(state) : 1.0f;
+        int damage = (int) (speed * 6);
+        if (damage < 1) damage = 1; // 保底
+
         Integer current = map.get(pos);
-        if (current == null) {
-            map.put(pos, damage);
-            if (damage >= 10) needSync = true;
-        } else {
-            int newDamage = current + damage;
-            map.put(pos, newDamage);
-            // 正确检测跨阶段（十位数字变化）
-            if (newDamage / 10 > current / 10) {
-                needSync = true;
-            }
-        }
+        int newDamage = (current == null) ? damage : current + damage;
+        map.put(pos, newDamage);
 
-        // 检查是否超过最大值
-        if (map.get(pos) > MAX) {
-            // 原版 destroyBlock 会自动处理掉落（基于工具正确性）、音效、粒子
-            level.destroyBlock(pos, tool.isCorrectToolForDrops(state), breaker);
-            // 清除裂纹
+        boolean broken = false;
+        if (newDamage > MAX) {
+            // 检查工具是否正确（工具为空时视为不正确）
+            boolean correctTool = tool != null && tool.isCorrectToolForDrops(state);
+            level.destroyBlock(pos, correctTool, breaker);
             clearCrack(pos);
             map.remove(pos);
-        } else if (needSync) {
+            broken = true;
+        } else if (current == null || newDamage / 10 > current / 10) {
             sync(pos);
         }
+
+        return broken;
     }
 
-    /**
-     * 直接设置破坏进度（不经过挖掘计算）
-     *
-     * @param drop 是否强制掉落（不受工具限制）
-     */
     public void set(BlockPos pos, int n, boolean drop) {
         ServerLevel level = map.level;
-
         if (n > MAX) {
             BlockState state = level.getBlockState(pos);
-            // 销毁方块，不自动掉落（手动控制）
             level.destroyBlock(pos, false, null);
             if (drop) {
                 Block.getDrops(state, level, pos, null, null, ItemStack.EMPTY)
@@ -83,13 +71,10 @@ public class BreakManager {
         }
     }
 
-    /**
-     * 同步裂纹动画给附近所有玩家
-     */
     public void sync(BlockPos pos) {
         Integer val = map.get(pos);
         if (val == null) return;
-        int stage = Math.max(0, Math.min(9, val / 10));  // 0~9
+        int stage = Math.max(0, Math.min(9, val / 10));
         ClientboundBlockDestructionPacket packet = new ClientboundBlockDestructionPacket(-1, pos, stage);
         ServerLevel level = map.level;
         for (ServerPlayer player : level.players()) {

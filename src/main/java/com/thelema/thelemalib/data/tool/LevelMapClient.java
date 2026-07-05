@@ -1,5 +1,6 @@
 package com.thelema.thelemalib.data.tool;
 
+import net.minecraft.resources.ResourceKey;
 import net.minecraft.world.level.Level;
 
 import java.util.Map;
@@ -23,6 +24,10 @@ public class LevelMapClient {
         }
         return null;
 
+    }
+
+    public static Map common(ResourceKey<Level> level, String file){
+        return common(level.location().toString(), file);
     }
 
     public static void clear(){
